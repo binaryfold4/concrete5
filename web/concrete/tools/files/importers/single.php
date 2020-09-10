@@ -1,6 +1,5 @@
-<?
+<?php defined('C5_EXECUTE') or die("Access Denied.");
 
-defined('C5_EXECUTE') or die("Access Denied.");
 $u = new User();
 $valt = Loader::helper('validation/token');
 Loader::library("file/importer");
@@ -17,6 +16,10 @@ $errorCode = -1;
 if (isset($_POST['fID'])) {
 	// we are replacing a file
 	$fr = File::getByID($_REQUEST['fID']);
+	$file_permissions = new Permissions($fr);
+	if (!$file_permissions->canEditFileContents()) {
+		die(t("Unable to add files."));
+	}
 } else {
 	$fr = false;
 }
@@ -57,21 +60,23 @@ if ($errorCode > -1 && $error == '') {
 <html>
 <head>
 <script language="javascript">
-	<? if(strlen($error)) { ?>
-		window.parent.ccmAlert.notice("<?=t('Upload Error')?>", "<?=str_replace("\n", '', nl2br($error))?>");
+	<?php if(strlen($error)) { ?>
+		window.parent.ccmAlert.notice("<?php echo t('Upload Error')?>", "<?php echo str_replace("\n", '', nl2br($error))?>");
 		window.parent.ccm_alResetSingle();
-	<? } else { ?>
+	<?php } else { ?>
 		highlight = new Array();
-		highlight.push(<?=$resp->getFileID()?>);
-		
-		<? if (is_object($fr)) { ?>
+		highlight.push(<?php echo $resp->getFileID()?>);
+
+		<?php if (is_object($fr)) { ?>
 			window.parent.jQuery.fn.dialog.closeTop();
-		<? } ?>
-		
-		window.parent.ccm_uploadedFiles.push(<?=intval($resp->getFileID())?>);
-		window.parent.ccm_filesUploadedDialog('<?=$searchInstance?>');
-		window.parent.ccm_alResetSingle();
-	<? } ?>
+		<?php } ?>
+
+		window.parent.ccm_uploadedFiles.push(<?php echo intval($resp->getFileID())?>);
+		setTimeout(function() {
+			window.parent.ccm_filesUploadedDialog('<?php echo $searchInstance?>');
+			window.parent.ccm_alResetSingle();
+		}, 100);
+	<?php } ?>
 </script>
 </head>
 <body>

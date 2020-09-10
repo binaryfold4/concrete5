@@ -24,12 +24,15 @@
 		</field>
 		<field name="recipientEmail" type="C" size="255">
 		</field>		
-		<field name="displayCaptcha" type="i">
+		<field name="displayCaptcha" type="I">
 			<default value="1"/>
 		</field>
-		<field name="redirectCID" type="i">
+		<field name="redirectCID" type="I">
 			<default value="0"/>
 		</field>      		
+		<field name="addFilesToSet" type="I">
+			<default value="0" />
+		</field>
 	</table>
 	
 	<table name="btFormQuestions"> 
@@ -68,7 +71,7 @@
 			<unsigned />
 			<default value="3" />
 		</field> 
-		<field name="required" type="i">
+		<field name="required" type="I">
 			<default value="0"/>
 		</field>  
 		<index name="questionSetId">
@@ -96,6 +99,9 @@
 			<unsigned />
 			<default value="0" />
 		</field>
+		<index name="questionSetId">
+			<col>questionSetId</col>
+		</index>
 	</table>
 	
 	<table name="btFormAnswers">
@@ -116,5 +122,8 @@
 		</field>
 		<field name="answerLong" type="X">
 		</field>
+		<index name="asID">
+			<col>asID</col>
+		</index>		
 	</table>
 </schema>

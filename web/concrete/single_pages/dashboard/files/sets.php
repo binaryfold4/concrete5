@@ -1,101 +1,82 @@
 <?php defined('C5_EXECUTE') or die("Access Denied."); ?>
-<? $ih = Loader::helper('concrete/interface'); ?>
-<? if ($this->controller->getTask() == 'view_detail') { ?>
-	<h1><span><?=t('Edit Set Details')?></span></h1>
-	<div class="ccm-dashboard-inner">
-		<form method="post" id="file_sets_edit" action="<?=$this->url('/dashboard/files/sets', 'file_sets_edit')?>">
-			<?=$validation_token->output('file_sets_edit');?>
-			<table class="entry-form" border="0" cellspacing="1" cellpadding="0">
-				<tbody>
-					<tr>
-						<td class="subheader"><?=t('Name')?></td>
-					</tr>
-					<tr>
-						<td><?=$form->text('file_set_name',$fs->fsName,array('style'=>'width:99%'));?></td>
-					</tr>
-					<? if (PERMISSIONS_MODEL != 'simple') { ?>
-					<tr>
-						<td class="subheader"><?=t('Custom Permissions')?></td>
-					</tr>
-					<tr>
-						<td>
-						
-						<? if ($fs->getFileSetType() == FileSet::TYPE_PRIVATE) { ?>
-							<?=t('File set permissions are unavailable for private sets.')?>
-						<? } else { ?>
-						
-						<?=$form->checkbox('fsOverrideGlobalPermissions', 1, $fs->overrideGlobalPermissions())?>
-						<?=t('Enable custom permissions for this file set.')?>
-						
-						<div id="ccm-file-set-permissions-wrapper" <? if (!$fs->overrideGlobalPermissions()) { ?> style="display: none" <? } ?>>
-						<a href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/user_group_selector" id="ug-selector" dialog-width="90%" dialog-title="<?=t('Choose User/Group')?>"  dialog-height="70%" class="ccm-button-right dialog-launch"><span><em><?=t('Add Group or User')?></em></span></a>
-			
-						<p>
-						<?=t('Add users or groups to determine access to the file manager. These permissions affect only this set.');?>
-						</p>
-						<div class="ccm-spacer">&nbsp;</div><br/>
+<?php $ih = Loader::helper('concrete/interface'); ?>
+<?php if ($this->controller->getTask() == 'view_detail') { ?>
 
-						<div id="ccm-file-permissions-entities-wrapper" class="ccm-permissions-entities-wrapper">			
-						<div id="ccm-file-permissions-entity-base" class="ccm-permissions-entity-base">
-						
-							<? print $ph->getFileAccessRow('SET'); ?>
-							
-							
-						</div>
-						
-						
-						<? 
-						if ($fs->overrideGlobalPermissions()) {
-							$gl = new GroupList($fs);
-							$ul = new UserInfoList($fs);
-						}else {
-							$gfs = FileSet::getGlobal();
-							$gl = new GroupList($gfs);
-							$ul = new UserInfoList($gfs);
-						
-						}
-						
-						$gArray = $gl->getGroupList();
-						$uArray = $ul->getUserInfoList();
-						foreach($gArray as $g) { ?>
-							
-							<? print $ph->getFileAccessRow('SET','gID_' . $g->getGroupID(), $g->getGroupName(), $g->getFileSearchLevel(), $g->getFileReadLevel(), $g->getFileWriteLevel(), $g->getFileAdminLevel(), $g->getFileAddLevel(), $g->getAllowedFileExtensions()); ?>
-						
-						<? } ?>
-						<? foreach($uArray as $ui) { ?>
-							
-							<? print $ph->getFileAccessRow('SET','uID_' . $ui->getUserID(), $ui->getUserName(), $ui->getFileSearchLevel(), $ui->getFileReadLevel(), $ui->getFileWriteLevel(), $ui->getFileAdminLevel(), $ui->getFileAddLevel(), $ui->getAllowedFileExtensions()); ?>
-						
-						<? } ?>
-						</div>
-						
-						
-						<div class="ccm-spacer">&nbsp;</div>
-						
-						</div>
-						
-						<? } ?>
-						
-						</td>
-					</tr>
-					<? } ?>
-					<tr>
-						<td class="header">
-						<?=$concrete_interface->submit(t('Update'), 'file_sets_edit');?>
-						<?=$concrete_interface->button(t('Cancel'), $this->url('/dashboard/files/sets'), 'left');?>						
-						</td>
-					</tr>
-				</tbody>
-			</table>
-			<?php
-				echo $form->hidden('fsID',$fs->getFileSetID());
-			?>
-		</form>
-	</div>
+
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('File Set'), false, 'span10 offset1', false)?>
+	<form method="post" class="form-horizontal" id="file_sets_edit" action="<?php echo $this->url('/dashboard/files/sets', 'file_sets_edit')?>" onsubmit="return ccm_saveFileSetDisplayOrder()">
+		<?php echo $form->hidden('fsDisplayOrder', '')?>
+		<?php echo $validation_token->output('file_sets_edit');?>
+
+	<div class="ccm-pane-body">
 	
-	<h1><span><?=t('Files')?></span></h1>
-	<div class="ccm-dashboard-inner">
-		<?
+	<div class="clearfix">
+	<ul class="tabs">
+		<li class="active"><a href="javascript:void(0)" onclick="$('.tabs').find('li.active').removeClass('active');$(this).parent().addClass('active');$('.ccm-tab').hide();$('#ccm-tab-details').show()" ><?php echo t('Details')?></a></li>
+		<li><a href="javascript:void(0)" onclick="$('.tabs').find('li.active').removeClass('active');$(this).parent().addClass('active');$('.ccm-tab').hide();$('#ccm-tab-files').show()"><?php echo t("Files in Set")?></a></li>
+	</ul>
+	</div>
+
+	<div id="ccm-tab-details" class="ccm-tab">
+
+		<?php
+		$u=new User();
+
+		$delConfirmJS = t('Are you sure you want to permanently remove this file set?');
+		?>
+		
+		<script type="text/javascript">
+		deleteFileSet = function() {
+			if (confirm('<?php echo $delConfirmJS?>')) { 
+				location.href = "<?php echo $this->url('/dashboard/files/sets', 'delete', $fs->getFileSetID(), Loader::helper('validation/token')->generate('delete_file_set'))?>";				
+			}
+		}
+		</script>
+
+		<div class="control-group">
+		<?php echo $form->label('file_set_name', t('Name'))?>
+		<div class="controls">
+			<?php echo $form->text('file_set_name',$fs->fsName, array('class' => 'span5'));?>	
+		</div>
+		</div>
+
+		<?php 
+		$fsp = new Permissions($fs);
+
+		if (PERMISSIONS_MODEL != 'simple') { 
+		
+		if ($fsp->canEditFileSetPermissions()) {
+
+		?>
+		
+		<div class="control-group">
+		<?php echo $form->label('fsOverrideGlobalPermissions', t('Custom Permissions'))?>
+		<div class="controls">
+			<label class="checkbox"><?php echo $form->checkbox('fsOverrideGlobalPermissions', 1, $fs->overrideGlobalPermissions())?> <span><?php echo t('Enable custom permissions for this file set.')?></span></label>
+		</div>
+		</div>
+		
+		
+
+		<div id="ccm-permission-list-form" <?php if (!$fs->overrideGlobalPermissions()) { ?> style="display: none" <?php } ?>>
+
+		<?php Loader::element('permission/lists/file_set', array("fs" => $fs)); ?>
+		
+		</div>
+		<?php } 
+		
+		}
+		?>
+		
+
+		<?php
+			echo $form->hidden('fsID',$fs->getFileSetID());
+		?>
+		
+		</div>
+
+	<div style="display: none" class="ccm-tab" id="ccm-tab-files">
+		<?php
 		Loader::model("file_list");
 		$fl = new FileList();
 		$fl->filterBySet($fs);
@@ -103,45 +84,50 @@
 		$files = $fl->get();
 		if (count($files) > 0) { ?>
 		
-		<form id="ccm-file-set-save-sort-order" method="post" action="<?=$this->url('/dashboard/files/sets', 'save_sort_order')?>">
-			<?=$form->hidden('fsDisplayOrder', '')?>
-			<?=$form->hidden('fsID', $fs->getFileSetID())?>
-		</form>
 		
-		<?=$ih->button_js(t('Save Display Order'), 'ccm_saveFileSetDisplayOrder()')?>
-		
-		
-		<p><?=t('Click and drag to reorder the files in this set. New files added to this set will automatically be appended to the end.')?></p>
+		<p><?php echo t('Click and drag to reorder the files in this set. New files added to this set will automatically be appended to the end.')?></p>
 		<div class="ccm-spacer">&nbsp;</div>
 		
 		<ul class="ccm-file-set-file-list">
 		
-		<?
+		<?php
 
 		foreach($files as $f) { ?>
 			
-		<li id="fID_<?=$f->getFileID()?>">
+		<li id="fID_<?php echo $f->getFileID()?>">
 			<div>
-				<?=$f->getThumbnail(1)?>				
-				<span style="word-wrap: break-word"><?=$f->getTitle()?></span>
+				<?php echo $f->getThumbnail(1)?>				
+				<span style="word-wrap: break-word"><?php echo $f->getTitle()?></span>
 			</div>
 		</li>
 			
-		<? } ?>
+		<?php } ?>
 
 			
 		</ul>
-		<? } else { ?>
-			<p><?=t('There are no files in this set.')?></p>
-		<? } ?>
+		<?php } else { ?>
+			<p><?php echo t('There are no files in this set.')?></p>
+		<?php } ?>
 	</div>
+	</div>
+	<div class="ccm-pane-footer">
+		<input type="submit" value="<?php echo t('Save')?>" class="btn primary ccm-button-v2-right" />
+		<?php if ($fsp->canDeleteFileSet()) { ?>
+			<?php print $ih->button_js(t('Delete'), "deleteFileSet()", 'right','error');?>
+		<?php } ?>
+	</div>
+
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper(false)?>
+
+	</form>
+	
 	
 	<script type="text/javascript">
 	
 	ccm_saveFileSetDisplayOrder = function() {
 		var fslist = $('.ccm-file-set-file-list').sortable('serialize');
-		$('form#ccm-file-set-save-sort-order input[name=fsDisplayOrder]').val(fslist);
-		$('form#ccm-file-set-save-sort-order').submit();
+		$('input[name=fsDisplayOrder]').val(fslist);
+		return true;
 	}
 	
 	$(function() {
@@ -150,13 +136,6 @@
 			opacity: 0.5
 		});
 		
-		//var ualist = $(this).sortable('serialize');
-/*				
-				$.post('<?=REL_DIR_FILES_TOOLS_REQUIRED?>/dashboard/user_attributes_update.php', ualist, function(r) {
-	
-				});
-				*/
-	
 	});
 	
 	</script>
@@ -165,125 +144,73 @@
 	.ccm-file-set-file-list:hover {cursor: move}
 	</style>
 
-	<h1><span><?=t('Delete File Set')?></span></h1>
-	
-	<div class="ccm-dashboard-inner">
-		<?
-		$u=new User();
-
-		$delConfirmJS = t('Are you sure you want to permanently remove this file set?');
-		?>
-		
-		<script type="text/javascript">
-		deleteFileSet = function() {
-			if (confirm('<?=$delConfirmJS?>')) { 
-				location.href = "<?=$this->url('/dashboard/files/sets', 'delete', $fs->getFileSetID(), Loader::helper('validation/token')->generate('delete_file_set'))?>";				
-			}
-		}
-		</script>
-
-		<? print $ih->button_js(t('Delete Set'), "deleteFileSet()", 'left');?>
-
-		<div class="ccm-spacer"></div>
-	</div>	
-
-	<script type="text/javascript">
-		ccm_triggerSelectUser = function(uID, uName) {
-			ccm_alSelectPermissionsEntity('uID', uID, uName);
-		}
-		
-		ccm_triggerSelectGroup = function (gID, gName) {
-			ccm_alSelectPermissionsEntity('gID', gID, gName);
-		}
-		
-		$(function() {	
-			$("#ug-selector").dialog();	
-			ccm_alActivateFilePermissionsSelector();	
-			
-			$("#fsOverrideGlobalPermissions").click(function() {
-				if ($(this).attr('checked')) {
-					$('#ccm-file-set-permissions-wrapper').show();
-				} else { 
-					$('#ccm-file-set-permissions-wrapper').hide();
-				}
-			});
-		});
-</script>	
 <?php } else { ?>
-	<h1><span><?=t('File Sets')?></span></h1>
-	<div class="ccm-dashboard-inner">
 
-		<div class="ccm-search-bar">
-		
-		<form id="ccm-file-set-search" method="get" action="<?=$this->url('/dashboard/files/sets')?>">
-		<div id="ccm-group-search-fields">
 
-		<strong><?=t('Type')?></strong>
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('File Sets'), false, 'span10 offset1', false)?>
+	<div class="ccm-pane-options">
 		
-		<input type="radio" id="fsTypePublic" name="fsType" value="<?=FileSet::TYPE_PUBLIC?>" <? if ($fsType != FileSet::TYPE_PRIVATE) { ?> checked <? } ?> onclick="$('#ccm-file-set-search').submit()" />
-		<label for="fsTypePublic"><?=t('Public Sets')?></label>
-		&nbsp;&nbsp;&nbsp;
-		<input type="radio" id="fsTypePublic" name="fsType" value="<?=FileSet::TYPE_PRIVATE?>" <? if ($fsType == FileSet::TYPE_PRIVATE) { ?> checked <? } ?> onclick="$('#ccm-file-set-search').submit()"  />
-		<label for="fsTypePublic"><?=t('My Sets')?></label>
-		
-		<span style="margin-left: 40px">&nbsp;</span>
-		
-		<strong><?=t('Keywords')?></strong>
-		
-		<input type="text" id="ccm-group-search-keywords" name="fsKeywords" value="<?=Loader::helper('text')->entities($_REQUEST['fsKeywords'])?>" class="ccm-text" style="width: 100px" />
-		<input type="submit" value="<?=t('Search')?>" />
+		<form id="ccm-file-set-search" method="get" action="<?php echo $this->url('/dashboard/files/sets')?>" class="form-horizontal">
+		<div class="ccm-pane-options-permanent-search">
+
+		<div class="span4">
+		<?php echo $form->label('fsKeywords', t('Keywords'))?>
+		<div class="controls">
+		<input type="text" id="fsKeywords" name="fsKeywords" value="<?php echo Loader::helper('text')->entities($_REQUEST['fsKeywords'])?>" class="span3" />
+		</div>
+		</div>
+
+		<div class="span4">
+		<?php echo $form->label('fsType', t('Type'))?>
+		<div class="controls">
+		<select id="fsType" name="fsType" style="width: 130px">
+		<option value="<?php echo FileSet::TYPE_PUBLIC?>" <?php if ($fsType != FileSet::TYPE_PRIVATE) { ?> selected <?php } ?>><?php echo t('Public Sets')?></option>
+		<option value="<?php echo FileSet::TYPE_PRIVATE?>" <?php if ($fsType == FileSet::TYPE_PRIVATE) { ?> selected <?php } ?>><?php echo t('My Sets')?></option>
+		</select>
+		<input type="submit" class="btn" value="<?php echo t('Search')?>" />
+		</div>
+		</div>
+				
 		<input type="hidden" name="group_submit_search" value="1" />
-		</div>
-		</form>
 
-		</div>
-		
-		<? if (count($fileSets) > 0) { 
-			$fsl->displaySummary();
+	</div>
+		</form>
+	</div>
+	<div class="ccm-pane-body <?php if (!$fsl->requiresPaging()) { ?> ccm-pane-body-footer <?php } ?> ">
+
+		<a href="<?php echo View::url('/dashboard/files/add_set')?>" style="float: right; z-index: 5; position:relative;top:-5px" class="btn primary"><?php echo t("Add File Set")?></a>
+
+		<?php echo $fsl->displaySummary()?>
+	
+		<?php if (count($fileSets) > 0) { ?>
 			
-		foreach ($fileSets as $fs) { ?>
+			<style type="text/css">
+				div.ccm-paging-top {padding-bottom:10px;}
+			</style>
+		
+		<?php foreach ($fileSets as $fs) { ?>
 		
 			<div class="ccm-group">
-				<a class="ccm-group-inner" href="<?=$this->url('/dashboard/files/sets/', 'view_detail', $fs->getFileSetID())?>" style="background-image: url(<?=ASSETS_URL_IMAGES?>/icons/group.png)"><?=$fs->getFileSetName()?></a>
+				<a class="ccm-group-inner" href="<?php echo $this->url('/dashboard/files/sets/', 'view_detail', $fs->getFileSetID())?>" style="background-image: url(<?php echo ASSETS_URL_IMAGES?>/icons/group.png)"><?php echo $fs->getFileSetName()?></a>
 			</div>
 		
 		
-		<? }
+		<?php }
 		
-			$fsl->displayPaging();
 		
 		} else { ?>
 		
-			<p><?=t('No file sets found.')?></p>
+			<p><?php echo t('No file sets found.')?></p>
 		
-		<? } ?>
+		<?php } ?>
 	
 	</div>
-	
-	<h1><span><?=t('Add Public Set')?></span></h1>
-	<div class="ccm-dashboard-inner">
-		<form method="post" id="file-sets-add" action="<?=$this->url('/dashboard/files/sets', 'file_sets_add')?>">
-			<?=$validation_token->output('file_sets_add');?>
-			<table class="entry-form" border="0" cellspacing="1" cellpadding="0">
-				<tbody>
-					<tr>
-						<td class="subheader"><?=t('Name')?></td>
-					</tr>
-					<tr>
-						<td><?=$form->text('file_set_name','',array('style'=>'width:99%'));?></td>
-					</tr>
-					<tr>
-						<td class="header">
-						<?php
-							$b1 = $concrete_interface->submit(t('Add'), 'file-sets-add');
-							print $concrete_interface->buttons($b1);
-						?>					
-						</td>
-					</tr>
-				</tbody>
-			</table>
-		</form>
-	</div>
+	<?php if ($fsl->requiresPaging()) { ?>
+		<div class="ccm-pane-footer">
+		<?php $fsl->displayPagingV2(); ?>
+		</div>
+	<?php } ?>
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper($fsl->requiresPaging())?>
 	
 	<script type="text/javascript">
 		var editFileSet = function(fsID){	
@@ -298,7 +225,7 @@
 			//set id
 			$('#fsID').attr('value',fsID);		
 			$('#file-sets-edit-or-delete-action').attr('value','delete');		
-			if(confirm("<?=t('Are you sure you want to delete this file set?')?>")){
+			if(confirm("<?php echo t('Are you sure you want to delete this file set?')?>")){
 				$("#file-sets-edit-or-delete").get(0).submit();
 			}
 		}

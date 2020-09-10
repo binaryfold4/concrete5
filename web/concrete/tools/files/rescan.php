@@ -1,4 +1,4 @@
-<?
+<?php
 defined('C5_EXECUTE') or die("Access Denied.");
 
 function shutdownRescan() {
@@ -12,7 +12,7 @@ function shutdownRescan() {
 	}
 }
 
-$searchInstance = $_REQUEST['searchInstance'];
+$searchInstance = Loader::helper('text')->entities($_REQUEST['searchInstance']);
 register_shutdown_function('shutdownRescan');
 
 $u = new User();
@@ -23,7 +23,7 @@ $fcnt = 0;
 if(is_array($_REQUEST['fID'])) foreach($_REQUEST['fID'] as $fID) {
 	$f = File::getByID($fID);
 	$fp = new Permissions($f);
-	if ($fp->canWrite()) {
+	if ($fp->canEditFileContents()) {
 		$fcnt++;
 		$fv = $f->getApprovedVersion();
 		$resp = $fv->refreshAttributes();
@@ -41,5 +41,5 @@ if(is_array($_REQUEST['fID'])) foreach($_REQUEST['fID'] as $fID) {
 print '</ol>';
 
 if ($fcnt == 0) { ?>
-	<?=t('You do not have permission to rescan any of the selected files.'); ?>
-<? } ?>
+	<?php echo t('You do not have permission to rescan any of the selected files.'); ?>
+<?php } ?>

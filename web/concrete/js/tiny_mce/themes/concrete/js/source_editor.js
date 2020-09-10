@@ -28,7 +28,9 @@ function setWrap(val) {
 
 	s.wrap = val;
 
-	if (!tinymce.isIE) {
+	if (tinymce.isWebKit) {
+		s.setAttribute("wrap", val);
+	} else if (!tinymce.isIE) {
 		v = s.value;
 		n = s.cloneNode(false);
 		n.setAttribute("wrap", val);
@@ -50,10 +52,10 @@ function resizeInputs() {
 	var el = document.getElementById('htmlSource');
 
 	if (!tinymce.isIE) {
-		 wHeight = self.innerHeight - 90;
+		 wHeight = self.innerHeight - 120;
 		 wWidth = self.innerWidth - 16;
 	} else {
-		 wHeight = document.body.clientHeight - 70;
+		 wHeight = document.body.clientHeight - 100;
 		 wWidth = document.body.clientWidth - 16;
 	}
 

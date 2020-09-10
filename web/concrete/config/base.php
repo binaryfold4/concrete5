@@ -1,4 +1,4 @@
-<?
+<?php
 defined('C5_EXECUTE') or die("Access Denied.");
 if (!defined('DISPATCHER_FILENAME')) {
 	define('DISPATCHER_FILENAME', 'index.php');
@@ -9,6 +9,10 @@ if (!defined('C5_ENVIRONMENT_ONLY')) {
 
 if (!defined('ENABLE_CMS_FOR_DIRECTORY')) {
 	define('ENABLE_CMS_FOR_DIRECTORY', true);
+}
+
+if (!defined('ENABLE_APPLICATION_EVENTS')) {
+	define('ENABLE_APPLICATION_EVENTS', true);
 }
 
 # These items should be set by site.php in config/ but if they're not that means we're installing and we need something there
@@ -22,7 +26,11 @@ if (!defined('BASE_URL')) {
 }
 
 if (!defined('DIR_REL')) {
-	$uri = substr($_SERVER['SCRIPT_NAME'], 0, strpos($_SERVER['SCRIPT_NAME'], DISPATCHER_FILENAME) - 1);
+	$pos = stripos($_SERVER['SCRIPT_NAME'], DISPATCHER_FILENAME);
+	if($pos > 0) { //we do this because in CLI circumstances (and some random ones) we would end up with index.ph instead of index.php
+		$pos = $pos - 1;
+	}
+	$uri = substr($_SERVER['SCRIPT_NAME'], 0, $pos);
 	define('DIR_REL', $uri);
 }
 
@@ -65,12 +73,18 @@ if (!defined('SITEMAP_PAGES_LIMIT')) {
 	define('SITEMAP_PAGES_LIMIT', 100);
 }
 
-if (!defined("ENABLE_AREA_LAYOUTS")) {
-	define('ENABLE_AREA_LAYOUTS', true);
+if (!defined('SITEMAP_APPROVE_IMMEDIATELY')) {
+	define('SITEMAP_APPROVE_IMMEDIATELY', true);
 }
-if (!defined("ENABLE_CUSTOM_DESIGN")) {
-	define('ENABLE_CUSTOM_DESIGN', true);
+
+if (!defined('DELETE_PAGES_LIMIT')) {
+	define('DELETE_PAGES_LIMIT', 10); // number of pages to delete during one ajax request.
 }
+
+if (!defined('COPY_PAGES_LIMIT')) {
+	define('COPY_PAGES_LIMIT', 10); // number of pages to delete during one ajax request.
+}
+
 if (!defined('ENABLE_DEFINABLE_USER_ATTRIBUTES')) {
 	define('ENABLE_DEFINABLE_USER_ATTRIBUTES', true);
 }
@@ -87,8 +101,17 @@ if (!defined("PAGE_PATH_SEPARATOR")) {
 	define('PAGE_PATH_SEPARATOR', '-');
 }
 
+if (!defined('PAGE_PATH_SEGMENT_MAX_LENGTH')) {
+	define('PAGE_PATH_SEGMENT_MAX_LENGTH', '128');
+}
+
+
 if (!defined('ENABLE_ASSET_COMPRESSION')) {
 	define('ENABLE_ASSET_COMPRESSION', false);
+}
+
+if (!defined('PAGING_STRING')) {
+	define('PAGING_STRING', 'ccm_paging_p');
 }
 
 /** 
@@ -107,28 +130,14 @@ if (!defined("DB_COLLATE")) {
 	define('DB_COLLATE', '');
 }
 
-if (!defined('LOCALE')) {
-	define("LOCALE", 'en_US');
-}
-
-if (strpos(LOCALE, '_') > -1) {
-	$loc = explode('_', LOCALE);
-	if (is_array($loc) && count($loc) == 2) {
-		define('LANGUAGE', $loc[0]);
-	}
-}
-
-if (!defined("LANGUAGE")) {
-	define("LANGUAGE", LOCALE);
-}
-
 define("LANGUAGE_DOMAIN_CORE", "messages");
 
 # Path to the core files shared between all concrete 5 installations
 if (!defined('DIR_BASE_CORE')) {
-	define('DIR_BASE_CORE', dirname(__FILE__) . '/..');
+	define('DIR_BASE_CORE', realpath(dirname(__FILE__) . '/..'));
 }
 
+define('DIRNAME_CORE_CLASSES', 'core');
 # if "concrete/" does NOT exist in DIR_BASE then we set multi_site to on
 if (!is_dir(DIR_BASE . '/' . DIRNAME_APP)) {
 	define("MULTI_SITE", 1);
@@ -145,7 +154,7 @@ define('DIR_LIBRARIES_CORE', DIR_BASE_CORE . '/libraries'); // front-end
 define('DIR_LIBRARIES_3RDPARTY', DIR_LIBRARIES . '/3rdparty');
 define('DIR_LIBRARIES_3RDPARTY_CORE', DIR_LIBRARIES_CORE . '/3rdparty');
 
-ini_set('include_path', get_include_path() . PATH_SEPARATOR . DIR_LIBRARIES_3RDPARTY . PATH_SEPARATOR . DIR_LIBRARIES_3RDPARTY_CORE);
+ini_set('include_path', DIR_LIBRARIES_3RDPARTY . PATH_SEPARATOR . DIR_LIBRARIES_3RDPARTY_CORE . PATH_SEPARATOR . get_include_path());
 
 # Models are explicit things - concrete-related or not - that deal with the db
 define('DIR_MODELS', DIR_BASE . '/models'); // front-end
@@ -165,8 +174,8 @@ if (!defined('DIR_PACKAGES')) {
 	define('DIR_PACKAGES', DIR_BASE . '/packages');
 }
 define('DIR_PACKAGES_CORE', DIR_BASE_CORE . '/packages');
-define('DIRNAME_PACKAGE_CORE', 'core');
-define('DIR_PACKAGE_CORE', DIR_BASE_CORE . '/packages/' . DIRNAME_PACKAGE_CORE);
+define('DIR_STARTING_POINT_PACKAGES', DIR_BASE . '/config/install/packages');
+define('DIR_STARTING_POINT_PACKAGES_CORE', DIR_BASE_CORE . '/config/install/packages');
 
 define('DIRNAME_BLOCKS', 'blocks');
 define('DIRNAME_BACKUPS', 'backups');
@@ -176,11 +185,18 @@ define('DIRNAME_MODELS', 'models');
 define('DIRNAME_ATTRIBUTES', 'attribute');
 define('DIRNAME_ATTRIBUTE_TYPES', 'types');
 define('DIRNAME_LIBRARIES', 'libraries');
+define('DIRNAME_RESPONSE', 'response');
+define('DIRNAME_PERMISSIONS', 'permission');
+define('DIRNAME_WORKFLOW', 'workflow');
+define('DIRNAME_WORKFLOW_ASSIGNMENTS', 'assignments');
+define('DIRNAME_REQUESTS', 'requests');
+define('DIRNAME_KEYS', 'keys');
 define('DIRNAME_PAGE_TYPES', 'page_types');
 define('DIRNAME_ELEMENTS', 'elements');
 define('DIRNAME_LANGUAGES', 'languages');
 define('DIRNAME_JOBS', 'jobs');
 define('DIRNAME_DASHBOARD', 'dashboard');
+define('DIRNAME_ELEMENTS_HEADER_MENU', 'header_menu');
 define('DIRNAME_DASHBOARD_MODULES', 'modules');
 define('DIRNAME_MAIL_TEMPLATES', 'mail');
 define('DIRNAME_THEMES', 'themes');
@@ -196,9 +212,14 @@ define('DIRNAME_JAVASCRIPT', 'js');
 define('DIRNAME_IMAGES', 'images');
 define('DIRNAME_HELPERS', 'helpers');
 
+define('DIRNAME_SYSTEM_TYPES', 'types');
+define('DIRNAME_SYSTEM_CAPTCHA', 'captcha');
+define('DIRNAME_SYSTEM_ANTISPAM', 'antispam');
+define('DIRNAME_SYSTEM', 'system');
+
 # Blocks
-define('DIR_FILES_BLOCK_TYPES', DIR_BASE . '/blocks');
-define('DIR_FILES_BLOCK_TYPES_CORE', DIR_BASE_CORE . '/blocks');
+define('DIR_FILES_BLOCK_TYPES', DIR_BASE . '/' . DIRNAME_BLOCKS);
+define('DIR_FILES_BLOCK_TYPES_CORE', DIR_BASE_CORE . '/' . DIRNAME_BLOCKS);
 define('FILENAME_BLOCK_VIEW', 'view.php');
 define('FILENAME_BLOCK_COMPOSER', 'composer.php');
 define('FILENAME_BLOCK_VIEW_SCRAPBOOK', 'scrapbook.php');
@@ -207,18 +228,27 @@ define('FILENAME_BLOCK_EDIT', 'edit.php');
 define('FILENAME_BLOCK_ICON', 'icon.png');
 define('FILENAME_BLOCK_CONTROLLER', 'controller.php');
 define('FILENAME_BLOCK_DB', 'db.xml');
+define('BLOCK_HANDLE_SCRAPBOOK_PROXY', 'core_scrapbook_display');
+define('FILENAME_FORM', 'form.php');
+
+# Stacks
+define('STACKS_PAGE_PATH', '/!stacks');
+define('STACKS_AREA_NAME', 'Main');
+define('STACKS_PAGE_TYPE', 'core_stack');
+define('BLOCK_HANDLE_STACK_PROXY', 'core_stack_display');
+
+# Trash
+define('TRASH_PAGE_PATH', '/!trash');
 
 # Hosted assets are assets shared amongst all Concrete5 installations on a single machine.
 if (defined('MULTI_SITE') && MULTI_SITE == 1) {
 	define('ASSETS_URL_WEB', BASE_URL);
-	define('ASSETS_URL_WEB_FULL', BASE_URL);
 	@include(DIRNAME_UPDATES . '/index.php');
 	if (isset($DIR_APP_UPDATES)) {
 		define('DIR_APP_UPDATES', $DIR_APP_UPDATES);
 	}
 } else {
 	define('DIR_APP_UPDATES', DIR_BASE . '/' . DIRNAME_UPDATES);
-	define('ASSETS_URL_WEB_FULL', BASE_URL . DIR_REL);
 	define('ASSETS_URL_WEB', DIR_REL);
 	define('MULTI_SITE', 0);
 }
@@ -233,6 +263,12 @@ define('ASSETS_URL_CSS', $ap . '/css');
 define('ASSETS_URL_JAVASCRIPT', $ap . '/js');
 define('ASSETS_URL_IMAGES', $ap . '/images');
 define('ASSETS_URL_FLASH', $ap . '/flash');
+
+define('REL_DIR_STARTING_POINT_PACKAGES', DIR_REL . '/config/install/packages');
+define('REL_DIR_STARTING_POINT_PACKAGES_CORE', ASSETS_URL . '/config/install/packages');
+define('REL_DIR_PACKAGES', DIR_REL . '/packages');
+define('REL_DIR_PACKAGES_CORE', ASSETS_URL . '/packages');
+
 
 # Pages/Collections
 define('FILENAME_COLLECTION_VIEW', 'view.php');
@@ -254,6 +290,7 @@ define("FILENAME_LOCAL_DB", 'site_db.xml');
 
 # Block Types
 define('BLOCK_TYPE_GENERIC_ICON', ASSETS_URL_IMAGES . '/icons/icon_block_type_generic.png');
+define('PACKAGE_GENERIC_ICON', ASSETS_URL_IMAGES . '/icons/icon_package_generic.png');
 
 # Controllers
 define('DIR_FILES_CONTROLLERS', DIR_BASE . '/controllers');
@@ -262,10 +299,13 @@ define('DIRNAME_CONTROLLERS', 'controllers');
 define('DIR_FILES_CONTROLLERS_REQUIRED', DIR_BASE_CORE . '/controllers');
 define('FILENAME_ATTRIBUTE_CONTROLLER', 'controller.php');
 define('FILENAME_ATTRIBUTE_DB', 'db.xml');
+define('FILENAME_DB', 'db.xml');
 
 # Elements
 define('DIR_FILES_ELEMENTS', DIR_BASE . '/elements');
 define('DIR_FILES_ELEMENTS_CORE', DIR_BASE_CORE . '/elements');
+define('FILENAME_MENU_ITEM_CONTROLLER', 'controller.php');
+define('FILENAME_CONTROLLER', 'controller.php');
 
 # Jobs
 if (!defined('DIR_FILES_JOBS')) {
@@ -286,6 +326,10 @@ define('FILENAME_THEMES_ERROR', 'error');
 define('ASSETS_URL_THEMES_NO_THUMBNAIL', ASSETS_URL_IMAGES . '/spacer.gif');
 define('THEMES_THUMBNAIL_WIDTH', 120);
 define('THEMES_THUMBNAIL_HEIGHT', 90);
+
+# languages
+define('DIR_LANGUAGES', DIR_BASE . '/' . DIRNAME_LANGUAGES);
+define('DIR_LANGUAGES_CORE', DIR_BASE_CORE . '/' . DIRNAME_LANGUAGES);
 
 # Mail templates are just another kind of element, but with some special properties
 define('DIR_FILES_EMAIL_TEMPLATES', DIR_BASE . '/mail');
@@ -314,39 +358,37 @@ if (!defined('DIR_FILES_CACHE')) {
 	define('DIR_FILES_CACHE', DIR_BASE . '/files/cache');
 }
 
+if (!defined('FILENAME_ENVIRONMENT_CACHE')) {
+	define('FILENAME_ENVIRONMENT_CACHE', 'environment.cache');
+}
+
+if (!defined('DIR_FILES_PAGE_CACHE')) {
+	define('DIR_FILES_PAGE_CACHE', DIR_BASE . '/files/cache/pages');
+}
+
+if (!defined('PAGE_CACHE_LIBRARY')) {
+	define('PAGE_CACHE_LIBRARY', 'file');
+}
+
 if (!defined('CACHE_ID')) {
-	define('CACHE_ID', md5(BASE_URL . DIR_REL));
+	define('CACHE_ID', md5(str_replace(array('https://', 'http://'), '', BASE_URL) . DIR_REL));
 }
 
-if (defined('DIR_FILES_CACHE') && !is_dir(DIR_FILES_CACHE)) {
-	@mkdir(DIR_FILES_CACHE);
-	@chmod(DIR_FILES_CACHE, 0777);
-}
-
-# Sessions/TMP directories
-if (!defined('DIR_TMP')) {
-	define('DIR_TMP', DIR_BASE . '/files/tmp');
-}
 define('DISPATCHER_FILENAME_CORE', 'dispatcher.php');
 
 
 if (defined('DIR_FILES_CACHE')) {
 	define('DIR_FILES_CACHE_DB', DIR_FILES_CACHE);
-	define('DIR_FILES_CACHE_PAGES', DIR_FILES_CACHE . '/lucene.pages');
 	$ADODB_ACTIVE_CACHESECS = 300;
 	$ADODB_CACHE_DIR = DIR_FILES_CACHE_DB;
 }
 
 if (!defined('CACHE_LIFETIME')) {
-	define('CACHE_LIFETIME', 43200);
+	define('CACHE_LIFETIME', 21600); // 6 hours
 }
 
 define('ON_WINDOWS', intval(substr(PHP_OS,0,3)=='WIN') );
 
-# Binaries used by the system
-# Currently unused
-# define('DIR_FILES_BIN', DIR_BASE_CORE . '/bin');
-define('DIR_FILES_BIN_HTMLDIFF', DIR_LIBRARIES_3RDPARTY_CORE . '/htmldiff.py');
 if (!defined('DIR_FILES_BIN_UNZIP')) {
 	 define('DIR_FILES_BIN_UNZIP', '/usr/bin/unzip');
 }
@@ -383,14 +425,16 @@ define('IMAGE_MAX_HEIGHT','1200');
 define('USER_USERNAME_MINIMUM', 3);
 define('USER_PASSWORD_MINIMUM', 5);
 define('USER_USERNAME_MAXIMUM', 64);
-define('USER_PASSWORD_MAXIMUM', 64);
+define('USER_PASSWORD_MAXIMUM', 128);
 define('USER_SUPER', 'admin');
 define('USER_SUPER_ID', 1);
 define('GUEST_GROUP_ID', '1');
 define('REGISTERED_GROUP_ID', '2');
 define('ADMIN_GROUP_ID', '3');
 define('SESSION_MAX_LIFETIME', 7200); // 2 hours
+define('USER_FOREVER_COOKIE_LIFETIME', 1209600); // 14 days
 define('USER_CHANGE_PASSWORD_URL_LIFETIME',  7200);
+define('NEWSFLOW_VIEWED_THRESHOLD', 86400); // once a day
 
 # Default search size
 define('SEARCH_CHUNK_SIZE','20'); /* number of entries retrieved per page */
@@ -414,7 +458,7 @@ define('HOME_UID', USER_SUPER_ID);
 define('HOME_HANDLE', "home");
 
 # Composer settings
-define('COMPOSER_DRAFTS_PAGE_PATH', '/dashboard/composer/drafts');
+define('COMPOSER_DRAFTS_PAGE_PATH', '/!drafts');
 
 # User avatar constants - should probably be moved into the avatar helper class as avatar constants
 if (!defined('AVATAR_WIDTH') && !defined('AVATAR_HEIGHT')) {
@@ -454,7 +498,13 @@ if (!defined('SESSION')) {
 }
 
 # Variables/constants necessary for ADODB
-define('DB_TYPE', 'mysql');
+if (!defined('DB_TYPE')) {
+	if (function_exists('mysqli_connect')) {
+		define('DB_TYPE', 'mysqli');
+	} else {
+		define('DB_TYPE', 'mysqlt');
+	}
+}
 if (!defined('DB_USE_CACHE')) {
 	// caching now handled by our app, no longer by adodb
 	define('DB_USE_CACHE', false);
@@ -465,6 +515,7 @@ if (!defined("API_KEY_PICNIK")) {
 }
 
 $ADODB_ASSOC_CASE =  2;
+
 require(dirname(__FILE__) . '/version.php');
 define('APP_VERSION', $APP_VERSION);
 define('APP_VERSION_LATEST_THRESHOLD', 172800); // Every 2 days we check for the latest version (this is seconds)
@@ -475,10 +526,24 @@ define('APP_VERSION_LATEST_DOWNLOAD', 'http://www.concrete5.org/download/');
 if (!defined('CONCRETE5_ORG_URL')) {
 	define('CONCRETE5_ORG_URL', 'http://www.concrete5.org');
 }
+if (!defined('CONCRETE5_ORG_URL_SECURE')) {
+	define('CONCRETE5_ORG_URL_SECURE', 'https://www.concrete5.org');
+}
+
+if (!defined('NEWSFLOW_URL')) {
+	define('NEWSFLOW_URL', 'http://newsflow.concrete5.org');
+}
+
+if (!defined('ENABLE_TRASH_CAN')) { 
+	define('ENABLE_TRASH_CAN', true);
+}
 
 define('MARKETPLACE_BASE_URL_SITE_PAGE', CONCRETE5_ORG_URL.'/private/sites');
+define('NEWSFLOW_SLOT_CONTENT_URL', NEWSFLOW_URL . '/tools/slot_content/');
 
 define('MARKETPLACE_URL_CONNECT', CONCRETE5_ORG_URL.'/marketplace/connect');
+define('MARKETPLACE_URL_CONNECT_SUCCESS', CONCRETE5_ORG_URL.'/marketplace/connect/-/connected');
+define('MARKETPLACE_URL_CHECKOUT', CONCRETE5_ORG_URL_SECURE.'/cart/-/add/');
 define('MARKETPLACE_URL_CONNECT_VALIDATE', CONCRETE5_ORG_URL.'/marketplace/connect/-/validate');
 define('MARKETPLACE_PURCHASES_LIST_WS', CONCRETE5_ORG_URL . '/marketplace/connect/-/get_available_licenses');
 define('MARKETPLACE_ITEM_INFORMATION_WS', CONCRETE5_ORG_URL . '/marketplace/connect/-/get_item_information');
@@ -486,8 +551,18 @@ define('MARKETPLACE_ITEM_FREE_LICENSE_WS', CONCRETE5_ORG_URL . '/marketplace/con
 define('MARKETPLACE_URL_CONNECT_TOKEN_NEW', CONCRETE5_ORG_URL.'/marketplace/connect/-/generate_token');
 define('MARKETPLACE_REMOTE_ITEM_LIST_WS', CONCRETE5_ORG_URL.'/marketplace/');
 
+define('DASHBOARD_BACKGROUND_FEED', 'http://backgroundimages.concrete5.org/wallpaper');
+define('DASHBOARD_BACKGROUND_FEED_SECURE', 'https://backgroundimages.concrete5.org/wallpaper');
+if (!defined('DASHBOARD_BACKGROUND_INFO')) { 
+	define('DASHBOARD_BACKGROUND_INFO', 'http://backgroundimages.concrete5.org/get_image_data.php');
+}
+
 if (!defined("MENU_HELP_URL")) {
 	define('MENU_HELP_URL', CONCRETE5_ORG_URL . '/tools/help_overlay/');
+}
+
+if (!defined('MENU_HELP_SERVICE_URL')) {
+	define('MENU_HELP_SERVICE_URL', CONCRETE5_ORG_URL . '/tools/get_remote_help_list/');
 }
 
 if (!defined('MARKETPLACE_THEME_PREVIEW_URL')) {
@@ -498,4 +573,44 @@ define('MARKETPLACE_CONTENT_LATEST_THRESHOLD', 10800); // every three hours
 define('MARKETPLACE_DIRNAME_THEME_PREVIEW', 'previewable_themes');
 define('MARKETPLACE_THEME_PREVIEW_ASSETS_URL', CONCRETE5_ORG_URL ."/". MARKETPLACE_DIRNAME_THEME_PREVIEW);
 
-require_once(DIR_LIBRARIES_CORE . '/loader.php');
+if(!defined('SITEMAPXML_FILE')) {
+	/** The path (relative to the web root) of the sitemap.xml file to save [default value: 'sitemap.xml'].
+	* @var string
+	*/
+	define('SITEMAPXML_FILE', 'sitemap.xml');
+}
+if(!defined('SITEMAPXML_DEFAULT_CHANGEFREQ')) {
+	/** The default page change frequency [default value: 'weekly'; valid values: 'always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'never'].
+	* @var string
+	*/
+	define('SITEMAPXML_DEFAULT_CHANGEFREQ', 'weekly');
+}
+if(!defined('SITEMAPXML_DEFAULT_PRIORITY')) {
+	/** The default page priority [default value: 0.5; valid values from 0.0 to 1.0].
+	* @var float
+	*/
+	define('SITEMAPXML_DEFAULT_PRIORITY', 0.5);
+}
+
+if(!defined('SITEMAPXML_BASE_URL')) {
+	/** The base url for building the page urls, will use the BASE_URL constant if not defined
+	* @var string
+	*/
+	define('SITEMAPXML_BASE_URL', BASE_URL);
+}
+
+if(!defined('APP_VERSION_DISPLAY_IN_HEADER')) {
+	define('APP_VERSION_DISPLAY_IN_HEADER', true);
+}
+
+// If set to false, passwords may become invalid when downgrading the server to PHP older than 5.3
+// If set to true then a less secure password hashing algorithm based on MD5 will be used instead 
+// of bcrypt or DES.
+if(!defined('PASSWORD_HASH_PORTABLE')) {
+	define('PASSWORD_HASH_PORTABLE', false);
+}
+
+// The higher this is the longer it will take to create password hashes, to check them, and to crack them.
+if(!defined('PASSWORD_HASH_COST_LOG2')) {
+	define('PASSWORD_HASH_COST_LOG2', 12);
+}

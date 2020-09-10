@@ -1,43 +1,25 @@
-<h1><span><?=t('File Manager')?></span></h1>
+<?php defined('C5_EXECUTE') or die("Access Denied."); ?>
+<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('File Manager'), array(t('Add, search, replace and modify the files for your website.'), 'http://www.concrete5.org/documentation/editors-guide/dashboard/file-manager/'), false, false);?>
 
-<? 
-$fp = FilePermissions::getGlobal();
+<?php 
 $c = Page::getCurrentPage();
 $ocID = $c->getCollectionID();
-if ($fp->canSearchFiles()) { ?>
+$fp = FilePermissions::getGlobal();
+if ($fp->canAddFile() || $fp->canSearchFiles()) { ?>
+<div class="ccm-pane-options" id="ccm-<?php echo $searchInstance?>-pane-options">
 
-	<div class="ccm-dashboard-inner">
-	
-		<table id="ccm-search-form-table" >
-			<tr>
-				<td valign="top" class="ccm-search-form-advanced-col">
-					<? Loader::element('files/search_form_advanced', array('searchInstance' => $searchInstance, 'searchRequest' => $searchRequest, 'searchType' => 'DASHBOARD')); ?>
-				</td>		
-				<? /* <div id="ccm-<?=$searchInstance?>-search-advanced-fields-gutter">&nbsp;</div> */ ?>		
-				<td valign="top" width="100%">	
-					
-					<div id="ccm-search-advanced-results-wrapper">
-					
-						<? Loader::element('files/upload_single', array('searchInstance' => $searchInstance, 'ocID' => $ocID)); ?>
-						
-						<div id="ccm-<?=$searchInstance?>-search-results" class="ccm-file-list">
-						
-							<? Loader::element('files/search_results', array('searchInstance' => $searchInstance, 'searchRequest' => $searchRequest, 'columns' => $columns, 'searchType' => 'DASHBOARD', 'files' => $files, 'fileList' => $fileList, 'pagination' => $pagination)); ?>
-						
-						</div>
-					
-					</div>
-				
-				</td>	
-			</tr>
-		</table>		
-		
-	</div>
-	
-<? } else { ?>
-	<div class="ccm-dashboard-inner">
-		<?=t('Unable to access file manager.'); ?>
-	</div>
-<? } ?>
+<div class="ccm-file-manager-search-form"><?php Loader::element('files/search_form_advanced', array('searchInstance' => $searchInstance, 'searchRequest' => $searchRequest, 'searchType' => 'DASHBOARD')); ?></div>
 
+</div>
 
+<?php Loader::element('files/search_results', array('searchInstance' => $searchInstance, 'searchRequest' => $searchRequest, 'columns' => $columns, 'searchType' => 'DASHBOARD', 'files' => $files, 'fileList' => $fileList)); ?>
+
+<?php } else { ?>
+<div class="ccm-pane-body">
+	<p><?php echo t("You do not have access to the file manager.");?></p>
+</div>	
+<div class="ccm-pane-footer"></div>
+
+<?php } ?>
+
+<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper(false); ?>

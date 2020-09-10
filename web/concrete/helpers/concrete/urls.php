@@ -1,4 +1,4 @@
-<?
+<?php
 /**
  * @package Helpers
  * @category Concrete
@@ -25,16 +25,12 @@ class ConcreteUrlsHelper {
 		if ($pkg && file_exists($pkg->getPackagePath() . '/' . FILENAME_BLOCK_ICON)) {
 			return $this->getPackageURL($pkg) . '/' . FILENAME_BLOCK_ICON;
 		} else {
-			return BLOCK_TYPE_GENERIC_ICON;
+			return PACKAGE_GENERIC_ICON;
 		}
 	}
 	
 	public function getPackageURL($pkg) {
-		if (is_dir(DIR_PACKAGES_CORE . '/' . $pkg->getPackageHandle())) {
-			return ASSETS_URL . '/' . DIRNAME_PACKAGES . '/' . $pkg->getPackageHandle();
-		} else {
-			return BASE_URL . DIR_REL . '/' . DIRNAME_PACKAGES . '/' . $pkg->getPackageHandle();
-		}
+		return $pkg->getRelativePath();
 	}
 	
 	/** 
@@ -81,13 +77,13 @@ class ConcreteUrlsHelper {
 		}
 		
 		if (file_exists(DIR_FILES_BLOCK_TYPES . '/' . $bt->getBlockTypeHandle() . $ff)) {
-			$url = BASE_URL . DIR_REL . '/' . DIRNAME_BLOCKS . '/' . $bt->getBlockTypeHandle() . $ff;
+			$url = DIR_REL . '/' . DIRNAME_BLOCKS . '/' . $bt->getBlockTypeHandle() . $ff;
 		} else if ($bt->getPackageID() > 0) {
 			$db = Loader::db();
 			$h = $bt->getPackageHandle();
 			$dirp = (is_dir(DIR_PACKAGES . '/' . $h)) ? DIR_PACKAGES . '/' . $h : DIR_PACKAGES_CORE . '/' . $h;
 			if (file_exists($dirp . '/' . DIRNAME_BLOCKS . '/' . $bt->getBlockTypeHandle() . $ff)) {
-				$url = (is_dir(DIR_PACKAGES . '/' . $h)) ? BASE_URL . DIR_REL : ASSETS_URL; 
+				$url = (is_dir(DIR_PACKAGES . '/' . $h)) ? DIR_REL : ASSETS_URL; 
 				$url = $url . '/' . DIRNAME_PACKAGES . '/' . $h . '/' . DIRNAME_BLOCKS . '/' . $bt->getBlockTypeHandle() . $ff;
 			}
 		} else if (file_exists(DIR_FILES_BLOCK_TYPES_CORE . '/' . $bt->getBlockTypeHandle() . $ff)) {

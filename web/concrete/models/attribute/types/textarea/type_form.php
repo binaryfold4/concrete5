@@ -1,9 +1,10 @@
-<table class="entry-form" cellspacing="1" cellpadding="0">
-<tr>
-	<td class="subheader"><?=t('Input Format')?></td>
-</tr>
-<tr>
-	<? 
+<fieldset>
+<legend><?php echo t('Text Area Options')?></legend>
+
+<div class="clearfix">
+<?php echo $form->label('akTextareaDisplayMode', t('Input Format'))?>
+<div class="input">
+	<?php 
 	$akTextareaDisplayModeOptions = array(
 		'text' => t('Plain Text'),
 		'rich_text' => t('Rich Text - Simple (Default Setting)'),
@@ -13,6 +14,7 @@
 		'rich_text_custom' => t('Rich Text - Custom')
 	);
 	?>
-	<td><?=$form->select('akTextareaDisplayMode', $akTextareaDisplayModeOptions, $akTextareaDisplayMode)?></td>
-</tr>
-</table>
+	<?php echo $form->select('akTextareaDisplayMode', $akTextareaDisplayModeOptions, $akTextareaDisplayMode)?>
+</div>
+</div>
+</fieldset>

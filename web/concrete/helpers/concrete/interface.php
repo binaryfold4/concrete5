@@ -1,4 +1,4 @@
-<?
+<?php
 /**
  * @package Helpers
  * @subpackage Concrete
@@ -19,6 +19,7 @@
 defined('C5_EXECUTE') or die("Access Denied.");
 class ConcreteInterfaceHelper {
 
+	static $menuItems = array();
 	
 	/** 
 	 * Generates a submit button in the Concrete style
@@ -31,8 +32,11 @@ class ConcreteInterfaceHelper {
 	 */
 	public function submit($text, $formID = false, $buttonAlign = 'right', $innerClass = null, $args = array()) {
 		if ($buttonAlign == 'right') {
-			$align = 'style="float: right"';
+			$innerClass .= ' ccm-button-v2-right';
+		} else if ($buttonAlign == 'left') {
+			$innerClass .= ' ccm-button-v2-left';
 		}
+		
 		if (!$formID) {
 			$formID = 'button';
 		}
@@ -40,7 +44,7 @@ class ConcreteInterfaceHelper {
 		foreach($args as $k => $v) {
 			$argsstr .= $k . '="' . $v . '" ';
 		}
-		return '<input type="submit" class="ccm-button-v2" value="' . $text . '" id="ccm-submit-' . $formID . '" name="ccm-submit-' . $formID . '" ' . $align . ' ' . $argsstr . ' />';
+		return '<input type="submit" class="btn ccm-button-v2 ' . $innerClass . '" value="' . $text . '" id="ccm-submit-' . $formID . '" name="ccm-submit-' . $formID . '" ' . $align . ' ' . $argsstr . ' />';
 	}
 	
 	/** 
@@ -52,15 +56,17 @@ class ConcreteInterfaceHelper {
 	 * @param array $args Extra args passed to the link
 	 * @return string
 	 */
-	public function button($text, $href, $buttonAlign = 'right', $innerClass = null, $args = array(), $onclick='') { 
+	public function button($text, $href, $buttonAlign = 'right', $innerClass = null, $args = array()) { 
 		if ($buttonAlign == 'right') {
-			$align = 'style="float: right"';
+			$innerClass .= ' ccm-button-v2-right';
+		} else if ($buttonAlign == 'left') {
+			$innerClass .= ' ccm-button-v2-left';
 		}
 		$argsstr = '';
 		foreach($args as $k => $v) {
 			$argsstr .= $k . '="' . $v . '" ';
 		}
-		return '<input type="button" class="ccm-button-v2" value="' . $text . '" onclick="window.location.href=\'' . $href . '\'" ' . $align . ' ' . $argsstr . ' />';
+		return '<a href="'.$href.'" class="btn '.$innerClass.'" '.$argsstr.'>'.$text.'</a>';
 	}
 
 	/** 
@@ -73,15 +79,16 @@ class ConcreteInterfaceHelper {
 	 * @return string
 	 */
 	public function button_js($text, $onclick, $buttonAlign = 'right', $innerClass = null, $args = array()) {
-		$href = 'javascript:void(0)';
 		if ($buttonAlign == 'right') {
-			$align = 'style="float: right"';
+			$innerClass .= ' ccm-button-v2-right';
+		} else if ($buttonAlign == 'left') {
+			$innerClass .= ' ccm-button-v2-left';
 		}
 		$argsstr = '';
 		foreach($args as $k => $v) {
 			$argsstr .= $k . '="' . $v . '" ';
 		}
-		return '<input type="button" class="ccm-button-v2" value="' . $text . '" onclick="' . $onclick . '" ' . $align . ' ' . $argsstr . ' />';
+		return '<input type="button" class="btn ccm-button-v2 ' . $innerClass . '" value="' . $text . '" onclick="' . $onclick . '" ' . $align . ' ' . $argsstr . ' />';
 	}
 	
 	/** 
@@ -96,11 +103,110 @@ class ConcreteInterfaceHelper {
 		if (!is_array($buttons)) {
 			$buttons = func_get_args();
 		}
-		$html = '<div class="ccm-buttons">';
+		$html = '<div class="ccm-buttons well">';
 		foreach($buttons as $_html) {
-			$html .= $_html;
+			$html .= $_html . ' ';
 		}
-		$html .= '</div><div class="ccm-spacer">&nbsp;</div>';
+		$html .= '</div>';
 		return $html;
 	}	
+	
+	public function getQuickNavigationLinkHTML($c) {
+		$cnt = Loader::controller($c);
+		if (method_exists($cnt, 'getQuickNavigationLinkHTML')) {
+			return $cnt->getQuickNavigationLinkHTML();
+		} else {
+			return '<a href="' . Loader::helper('navigation')->getLinkToCollection($c) . '">' . $c->getCollectionName() . '</a>';
+		}
+	}
+	
+	public function showWhiteLabelMessage() {
+		return ((defined('WHITE_LABEL_LOGO_SRC') && WHITE_LABEL_LOGO_SRC != '')  || file_exists(DIR_BASE . '/' . DIRNAME_IMAGES . '/logo_menu.png'));
+	}
+	
+	public function getToolbarLogoSRC() {
+		if (defined('WHITE_LABEL_APP_NAME')) { 
+			$alt = WHITE_LABEL_APP_NAME;
+		}
+		if (!$alt) {
+			$alt = 'concrete5';
+		}
+		if (defined('WHITE_LABEL_LOGO_SRC')) { 
+			$src = WHITE_LABEL_LOGO_SRC;
+		}
+		if (!$src) {
+			$filename = 'logo_menu.png';
+			if (file_exists(DIR_BASE . '/' . DIRNAME_IMAGES . '/' . $filename)) {
+				$src = DIR_REL . '/' . DIRNAME_IMAGES . '/' . $filename;
+				$d = getimagesize(DIR_BASE . '/' . DIRNAME_IMAGES . '/' . $filename);
+				$dimensions = $d[3];
+			} else {
+				$src = ASSETS_URL_IMAGES . '/' . $filename;
+				$dimensions = 'width="49" height="49"';
+			}
+		}
+		return '<img id="ccm-logo" src="' . $src . '" ' . $dimensions . ' alt="' . $alt . '" title="' . $alt . '" />';
+	}
+	
+	public function showNewsflowOverlay() {
+		$tp = new TaskPermission();
+		$c = Page::getCurrentPage();
+		if (MOBILE_THEME_IS_ACTIVE == false && ENABLE_NEWSFLOW_OVERLAY == true && $tp->canViewNewsflow() && $c->getCollectionPath() != '/dashboard/news') {
+			$u = new User();
+			$nf = $u->config('NEWSFLOW_LAST_VIEWED');
+			if ($nf == 'FIRSTRUN') {
+				return false;
+			}
+			
+			if (Config::get('SITE_MAINTENANCE_MODE')) {
+				return false;
+			}
+				
+			if (!$nf) {
+				return true;
+			}
+			if (time() - $nf > NEWSFLOW_VIEWED_THRESHOLD) {
+				return true;
+			}
+		}
+		return false;
+	}
+		
+	public function clearInterfaceItemsCache() {
+		$u = new User();
+		if ($u->isRegistered()) {
+			unset($_SESSION['dashboardMenus']);
+		}
+	}
+	
+	public function cacheInterfaceItems() {
+		global $config_check_failed;
+		if (!isset($config_check_failed) || !$config_check_failed) {
+			$u = new User();
+			if ($u->isRegistered()) {
+				$ch = Loader::helper('concrete/dashboard');
+				$_SESSION['dashboardMenus'][Localization::activeLocale()] = $ch->getDashboardAndSearchMenus();
+			}
+		}
+	}
+	
+	public function tabs($tabs, $jstabs = true) {
+		$tcn = rand(0, getrandmax());
+
+		$html = '<ul class="nav-tabs nav" id="ccm-tabs-' . $tcn . '">';
+		foreach($tabs as $t) {
+			$dt = $t[0];
+			$href = '#';
+			if (!$jstabs) {
+				$dt = '';
+				$href = $t[0];
+			}
+			$html .= '<li class="' . ((isset($t[2]) && $t[2] == true) ? 'active' : ''). '"><a href="' . $href . '" data-tab="' . $dt . '">' . $t[1] . '</a></li>';
+		}
+		$html .= '</ul>';
+		if ($jstabs) { 
+			$html .= '<script type="text/javascript">$(function() { ccm_activateTabBar($(\'#ccm-tabs-' . $tcn . '\'));});</script>';
+		}
+		return $html;
+	}
 }

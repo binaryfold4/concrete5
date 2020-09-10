@@ -1,4 +1,4 @@
-<?
+<?php
 defined('C5_EXECUTE') or die("Access Denied.");
 $displayGroups = true;
 $displayUsers = true;
@@ -29,35 +29,33 @@ $("#ccm-ug-tabs a").click(function() {
 
 </script>
 
-<? if ($displayGroups && $displayUsers) { ?>
+<?php if ($displayGroups && $displayUsers) { ?>
 
 <ul class="ccm-dialog-tabs" id="ccm-ug-tabs">
-<li class="ccm-nav-active"><a href="javascript:void(0)" id="ccm-select-group"><?=t('Groups')?></a></li>
-<li><a href="javascript:void(0)" id="ccm-select-user"><?=t('Users')?></a></li>
+<li class="ccm-nav-active"><a href="javascript:void(0)" id="ccm-select-group"><?php echo t('Groups')?></a></li>
+<li><a href="javascript:void(0)" id="ccm-select-user"><?php echo t('Users')?></a></li>
 </ul>
 
-<? } ?>
+<?php } ?>
 
-<? if ($displayGroups) { ?>
+<?php if ($displayGroups) { ?>
 
-<div id="ccm-select-group-tab">
+<div id="ccm-select-group-tab" style="clear: both">
 
-<h1><?=t('Select Group')?></h1>
-<? include(DIR_FILES_TOOLS_REQUIRED . '/select_group.php'); ?>
+<?php include(DIR_FILES_TOOLS_REQUIRED . '/select_group.php'); ?>
 
 </div>
 
-<? } ?>
+<?php } ?>
 
-<? if ($displayUsers) { ?>
+<?php if ($displayUsers) { ?>
 
-<div id="ccm-select-user-tab" style="display: none">
-<h1><?=t('Select User')?></h1>
+<div id="ccm-select-user-tab" style="display: none; clear: both">
 
-<? 
+<?php 
 $mode = 'choose_multiple';
 include(DIR_FILES_TOOLS_REQUIRED . '/users/search_dialog.php'); ?>
 
 </div>
 
-<? } ?>
+<?php } ?>

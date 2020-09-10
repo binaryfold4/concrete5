@@ -1,4 +1,4 @@
-<?
+<?php
 
 defined('C5_EXECUTE') or die("Access Denied.");
 
@@ -16,7 +16,7 @@ if($scrapbookName) $scrapbookHelper->setDefault($scrapbookName);
 $c = Page::getByID($_REQUEST['cID']);
 // add a block to a pile	
 $cp = new Permissions($c);
-if (!$cp->canRead()) {
+if (!$cp->canViewPage()) {
 	exit;
 }
 
@@ -24,9 +24,17 @@ if (($_REQUEST['btask'] == 'add' || $_REQUEST['ctask'] == 'add') && $scrapbookNa
 	
 	if ($_REQUEST['btask'] == 'add') {
 		$a = Area::get($c, $_REQUEST['arHandle']);
-		$b = Block::getByID($_REQUEST['bID'], $c, $a);
+		if ($a->isGlobalArea()) {
+			$ax = STACKS_AREA_NAME;
+			$cx = Stack::getByName($_REQUEST['arHandle']);
+		}
+		$b = Block::getByID($_REQUEST['bID'], $cx, $ax);
+		if ($b->getBlockTypeHandle() == BLOCK_HANDLE_SCRAPBOOK_PROXY) {
+			$bi = $b->getInstance();
+			$b = Block::getByID($bi->getOriginalBlockID());
+		}
 		$ap = new Permissions($a);
-		if (!$ap->canRead()) {
+		if (!$ap->canViewArea()) {
 			exit;
 		}
 		$obj = &$b;
@@ -34,53 +42,21 @@ if (($_REQUEST['btask'] == 'add' || $_REQUEST['ctask'] == 'add') && $scrapbookNa
 		$obj = &$c;
 	}	
 
-	if( $scrapbookName != $scrapbookHelper->getPersonalScrapbookName()  && intval($b->bID) > 0) {
-	
-		$globalScrapbookPage = $scrapbookHelper->getGlobalScrapbookPage();
-		$globalScrapbookArea = Area::get( $globalScrapbookPage, $scrapbookName );
-		if($globalScrapbookArea){ 
-			$b->setBlockAreaObject($globalScrapbookArea);   
-			if($_REQUEST['blockAddMode']=='alias'){
-				$originalBlockDisplayOrder = $b->cbDisplayOrder;
-				//make a global version of the original block 
-				$duplicatedBlock = $b->duplicate($globalScrapbookPage); 
-				if($duplicatedBlock){
-					//delete original block
-					$b->delete(1);
-					//add the new global back to the page as a global
-					$duplicatedBlock->setBlockAreaObject( $a );  
-					$duplicatedBlock->cbDisplayOrder= $originalBlockDisplayOrder ; 
-					$duplicatedBlock->alias( $c );				
-					$duplicatedBlock->updateBlockName( $scrapbookName.' '.intval($duplicatedBlock->bID) , 1 );
-					$added = true;
-				}
-			}else{
-				$duplicatedBlock = $b->duplicate($globalScrapbookPage); 
-				if($duplicatedBlock){
-					$duplicatedBlock->updateBlockName( $scrapbookName.' '.intval($duplicatedBlock->bID) , 1 );
-					$added = true;
-				}
-			}
-			
-		}
-	
-	}else{	
-	
-		if ($_REQUEST['pID']) {
-			$p = Pile::get($_REQUEST['pID']);
-			if (is_object($p)) {
-				if (!$p->isMyPile()) {
-					unset($p);
-				}
+
+	if ($_REQUEST['pID']) {
+		$p = Pile::get($_REQUEST['pID']);
+		if (is_object($p)) {
+			if (!$p->isMyPile()) {
+				unset($p);
 			}
 		}
-		if (!is_object($p)) {
-			$p = Pile::getDefault();
-		}
-		$p->add($obj);
-		
-		$added = true;
 	}
+	if (!is_object($p)) {
+		$p = Pile::getDefault();
+	}
+	$p->add($obj);
+	
+	$added = true;
 	
 	
 	
@@ -90,7 +66,7 @@ if (($_REQUEST['btask'] == 'add' || $_REQUEST['ctask'] == 'add') && $scrapbookNa
 		case 'add_contents':
 			$c = Page::getByID($_REQUEST['cID']);
 			$cp = new Permissions($c);
-			if (!$cp->canRead()) {
+			if (!$cp->canViewPage()) {
 				exit;
 			}
 			
@@ -120,12 +96,12 @@ if (($_REQUEST['btask'] == 'add' || $_REQUEST['ctask'] == 'add') && $scrapbookNa
 		case 'add_prepare':
 			$c = Page::getByID($_REQUEST['cID']);
 			$cp = new Permissions($c);
-			if (!$cp->canRead()) {
+			if (!$cp->canViewPage()) {
 				exit;
 			}
 			$a = Area::get($c, $_REQUEST['arHandle']);
 			$ap = new Permissions($a);
-			if (!$ap->canRead() || !$ap->canAddBlocks()) {
+			if (!$ap->canViewArea() || !$ap->canAddBlocks()) {
 				exit;
 			}
 			break;
@@ -181,8 +157,13 @@ if (($_REQUEST['btask'] == 'add' || $_REQUEST['ctask'] == 'add') && $scrapbookNa
 						$p->add($pc);
 					}
 				}
+
+				$securityHelper = Loader::helper('security');
+				$PHP_SELF = $securityHelper->sanitizeURL($_SERVER['PHP_SELF']);
+				$cID = $securityHelper->sanitizeInt($_REQUEST['cID']);
+				$arHandle = $securityHelper->sanitizeString($_REQUEST['arHandle']);
 			
-				header('Location: ' . $_SERVER['PHP_SELF'] . '?pID=' . $p->getPileID() . '&cID=' . $_REQUEST['cID'] . '&arHandle=' . $_REQUEST['arHandle']);
+				header('Location: ' . $PHP_SELF . '?pID=' . $p->getPileID() . '&cID=' . $cID . '&arHandle=' . $arHandle);
 				exit;
 			}
 			break;
@@ -220,7 +201,7 @@ if($_REQUEST['btask']=='add'){
 		$ih = Loader::helper('concrete/interface'); 
 		
 		$defaultScrapbook=$scrapbookHelper->getDefault(); ?>		
-		<script>
+		<script type="text/javascript">
 		if(!ccmSaveToScrapbookDialogTarget)
 			var ccmSaveToScrapbookDialogTarget=null;
 			
@@ -231,7 +212,7 @@ if($_REQUEST['btask']=='add'){
 			ccmSaveToScrapbookDialogTarget = sel.closest('.ccm-dialog-content'); 
 			var scrapbook=sel.val(); 
 			if(!scrapbook){
-				alert("<?=t("Please choose a scrapbook.") ?>");
+				alert("<?php echo t("Please choose a scrapbook.") ?>");
 				return false;
 			}
 			jQuery.fn.dialog.showLoader();
@@ -239,7 +220,7 @@ if($_REQUEST['btask']=='add'){
 			$.ajax({
 			type: 'POST',
 			url: CCM_TOOLS_PATH+"/pile_manager.php",
-			data: 'cID=<?=intval($_REQUEST['cID'])?>&bID=<?=intval($_REQUEST['bID'])?>&arHandle=<?=urlencode($_REQUEST['arHandle'])?>&btask=add&scrapbookName='+scrapbook+'&blockAddMode='+blockAddMode,
+			data: 'cID=<?php echo intval($_REQUEST['cID'])?>&bID=<?php echo intval($_REQUEST['bID'])?>&arHandle=<?php echo urlencode($_REQUEST['arHandle'])?>&btask=add&scrapbookName='+scrapbook+'&blockAddMode='+blockAddMode,
 			success: function(resp) { 
 				jQuery.fn.dialog.hideLoader();
 				jQuery.fn.dialog.closeTop();
@@ -257,41 +238,41 @@ if($_REQUEST['btask']=='add'){
 		
 		<div>
 		<select id="ccm-addToScrapbookName" name="scrapbookName" onchange="ccmShowBlockAddModeRadios(this)" style="width: 205px">
-			<option value="userScrapbook" <?=($defaultScrapbook==$scrapbookHelper->getPersonalScrapbookName())?'selected':''?>>
-				<?=t("%s's Personal Scrapbook", $u->getUserName()) ?> 
+			<option value="userScrapbook" <?php echo ($defaultScrapbook==$scrapbookHelper->getPersonalScrapbookName())?'selected':''?>>
+				<?php echo t("%s's Personal Scrapbook", $u->getUserName()) ?> 
 			</option>
-			<? foreach($scrapBookAreasData as $scrapBookAreaData){ ?>
-				<option value="<?=addslashes($scrapBookAreaData['arHandle'])?>" 
-				<?=($defaultScrapbook==$scrapBookAreaData['arHandle'])?'selected':''?> >
-					<?=$scrapBookAreaData['arHandle'] ?>
+			<?php foreach($scrapBookAreasData as $scrapBookAreaData){ ?>
+				<option value="<?php echo addslashes($scrapBookAreaData['arHandle'])?>" 
+				<?php echo ($defaultScrapbook==$scrapBookAreaData['arHandle'])?'selected':''?> >
+					<?php echo $scrapBookAreaData['arHandle'] ?>
 				</option>
-			<? } ?>
+			<?php } ?>
 		</select> 
 		</div>
 		
-		<div id="ccm-blockAddModeWrap" style="display:<?=($defaultScrapbook!=$scrapbookHelper->getPersonalScrapbookName())?'block':'none'?>">
+		<div id="ccm-blockAddModeWrap" style="display:<?php echo ($defaultScrapbook!=$scrapbookHelper->getPersonalScrapbookName())?'block':'none'?>">
 			&nbsp;<br />
-			<input name="blockAddMode" type="radio" value="duplicate" checked="checked" /> New copy to Scrapbook<br />
-			<input id="blockAddModeAliased" name="blockAddMode" type="radio" value="alias" /> Alias original to Scrapbook
+			<input name="blockAddMode" type="radio" value="duplicate" checked="checked" /> <?php echo t('New copy to Scrapbook')?><br />
+			<input id="blockAddModeAliased" name="blockAddMode" type="radio" value="alias" /> <?php echo t('Alias original to Scrapbook')?>
 		</div>
 	
 		<br/> 
 		
-		<div class="sillyIE7"><?= $ih->button_js( t('Add Block to Scrapbook'), 'ccmSaveToScrapbook()','left'); ?></div>
+		<div class="sillyIE7"><?php echo $ih->button_js( t('Add Block to Scrapbook'), 'ccmSaveToScrapbook()','left'); ?></div>
 		
-	<? }elseif($added){ ?>
+	<?php }elseif($added){ ?>
 		
 		<br/> 
 		
-		<?=t('Block added to scrapbook.')?>
+		<?php echo t('Block added to scrapbook.')?>
 		
 		<br/><br/>
 		<div style="text-align: center">
-		<img src="<?=ASSETS_URL_IMAGES?>/throbber_white_32.gif" width="32" height="32" />
+		<img src="<?php echo ASSETS_URL_IMAGES?>/throbber_white_32.gif" width="32" height="32" />
 		</div>
 		
-		<? /*<a href="javascript:void(0)" class="ccm-dialog-close ccm-button-left cancel"><span><em class="ccm-button-close"><?=t('Close Window')?></em></span></a>*/ ?>
+		<?php /*<a href="javascript:void(0)" class="ccm-dialog-close ccm-button-left cancel"><span><em class="ccm-button-close"><?php echo t('Close Window')?></em></span></a>*/ ?>
 		
-	<? }
+	<?php }
 }	
 ?>

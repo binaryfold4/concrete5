@@ -1,6 +1,7 @@
-<? defined('C5_EXECUTE') or die("Access Denied."); ?> 
-<? $form = Loader::helper('form'); ?>
-<?
+<?php defined('C5_EXECUTE') or die("Access Denied."); ?> 
+<div class="ccm-ui">
+<?php $form = Loader::helper('form'); ?>
+<?php
 
 function checkbox($field, $value, $state, $miscFields = array()) {
 
@@ -13,7 +14,7 @@ function checkbox($field, $value, $state, $miscFields = array()) {
 
 	$src = ASSETS_URL_IMAGES . '/checkbox_state_' . $state . '.png';
 					
-	$str = '<a href="javascript:void(0)" ccm-tri-state-startup="' . $state . '" ccm-tri-state-selected="' . $state . '" ><input type="hidden" value="' . $state . '" name="' . $field . ':' . $value . '" /> <img width="16" height="16" src="' . $src . '" ' . $mf . ' /></a>';
+	$str = '<input type="hidden" value="' . $state . '" name="' . $field . ':' . $value . '" /><a href="javascript:void(0)" ccm-tri-state-startup="' . $state . '" ccm-tri-state-selected="' . $state . '" ><img width="16" height="16" src="' . $src . '" ' . $mf . ' /></a>';
 	return $str;
 }
 
@@ -22,14 +23,14 @@ Loader::model('file_set');
 $s1 = FileSet::getMySets();
 
 $files = array();
-$searchInstance = $_REQUEST['searchInstance'];
+$searchInstance = Loader::helper('text')->entities($_REQUEST['searchInstance']);
 $extensions = array();
 
 if (is_array($_REQUEST['fID'])) {
 	foreach($_REQUEST['fID'] as $fID) {
 		$f = File::getByID($fID);
 		$fp = new Permissions($f);
-		if ($fp->canRead()) {
+		if ($fp->canViewFile()) {
 			$files[] = $f;
 			$extensions[] = strtolower($f->getExtension());
 		}
@@ -37,7 +38,7 @@ if (is_array($_REQUEST['fID'])) {
 } else {
 	$f = File::getByID($_REQUEST['fID']);
 	$fp = new Permissions($f);
-	if ($fp->canRead()) {
+	if ($fp->canViewFile()) {
 		$files[] = $f;
 		$extensions[] = strtolower($f->getExtension());
 	}
@@ -118,46 +119,33 @@ if ($_POST['task'] == 'add_to_sets') {
 
 <script type="text/javascript">
 $(function() {
-	ccm_alSetupSetsForm('<?=$searchInstance?>');
+	ccm_alSetupSetsForm('<?php echo $searchInstance?>');
 });
 </script>
 
 
-<? if (!$disableForm) { ?>
-	<form method="post" id="ccm-<?=$searchInstance?>-add-to-set-form" action="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/files/add_to/">
-	<?=$form->hidden('task', 'add_to_sets')?>
-	<? foreach($files as $f) { ?>
-		<input type="hidden" name="fID[]" value="<?=$f->getFileID();?>" />
-	<? } ?>
+<?php if (!$disableForm) { ?>
+	<form method="post" id="ccm-<?php echo $searchInstance?>-add-to-set-form" action="<?php echo REL_DIR_FILES_TOOLS_REQUIRED?>/files/add_to/">
+	<?php echo $form->hidden('task', 'add_to_sets')?>
+	<?php foreach($files as $f) { ?>
+		<input type="hidden" name="fID[]" value="<?php echo $f->getFileID();?>" />
+	<?php } ?>
 
-<? } ?>
+<?php } ?>
 
-	<div style="margin-top: 12px">
-	<table border="0" cellspacing="0" cellpadding="0" id="ccm-file-search-advanced-sets-header">
-	<tr>
-		<? if (!$disableTitle) { ?>
-		<td width="100%"><h1><?=t('Set')?></h1></td>
-		<? } ?>
-		<td>
-		
-		
-		<div class="ccm-file-sets-search-wrapper-input">
-			<?=$form->text('fsAddToSearchName', $searchRequest['fsSearchName'], array('autocomplete' => 'off'))?>
-		</div>
-		
-		</td>
-	</tr>
-	</table>
+	<div class="clear"></div>
+	<div class="ccm-search-bar">
+		<?php echo $form->text('fsAddToSearchName', $searchRequest['fsSearchName'], array('autocomplete' => 'off'))?>
 	</div>
 
 	
-	<? $s1 = FileSet::getMySets(); ?>
-	<? if (count($s1) > 0) { ?>
-	<div class="ccm-file-search-advanced-sets-results">
-		<ul id="ccm-file-search-add-to-sets-list">
+	<?php $s1 = FileSet::getMySets(); ?>
+	<?php if (count($s1) > 0) { ?>
+	<div class="clearfix">
+		<ul id="ccm-file-search-add-to-sets-list" class="inputs-list">
 	
 	
-	<? foreach($sets as $s) { 
+	<?php foreach($sets as $s) { 
 		$displaySet = true;
 		
 		$pf = new Permissions($s);
@@ -174,39 +162,41 @@ $(function() {
 		if ($displaySet) {
 		?>
 	
-		<li class="ccm-file-set-add-cb" style="padding-left: 0px">
-			<?=checkbox('fsID', $s->getFileSetID(), $s->state)?> <label><?=$s->getFileSetName()?></label>
+		<li class="ccm-file-set-add-cb">
+				<label>
+				<?php echo checkbox('fsID', $s->getFileSetID(), $s->state)?>
+				<span><?php echo $s->getFileSetName()?></span>
+				</label>
 		</li>
-	<? } 
+	<?php } 
 	} ?>
 	
 		</ul>
 	</div>
-	<? } else { ?>
-		<?=t('You have not created any file sets yet.')?>
-	<? } ?>
+	<?php } else { ?>
+		<?php echo t('You have not created any file sets yet.')?>
+	<?php } ?>
 
-<? if (count($extensions) > 1) { ?>
+<?php if (count($extensions) > 1) { ?>
 
-	<br/><div class="ccm-note"><?=t('If a file set does not appear above, you either have no access to add files to it, or it does not accept the file types %s.', implode(', ', $extensions));?></div>
+	<div class="alert-message info"><p><?php echo t('If a file set does not appear above, you either have no access to add files to it, or it does not accept the file types %s.', implode(', ', $extensions));?></p></div>
 	
-	
-<? } ?>
-<br/>
-<hr />
+<?php } ?>
 
-<h2><?=t('Add to New Set')?></h2>
 
-<?=$form->checkbox('fsNew', 1)?> <?=$form->text('fsNewText', array('style' => 'width: 120px', 'onclick' => '$(\'input[name=fsNew]\').attr(\'checked\',true)'))?> <?=$form->checkbox('fsNewShare', 1, true)?> <?=t('Make set public')?>
+<h3><?php echo t('Add to New Set')?></h3>
 
-<? if (!$disableForm) { ?>
+<?php echo $form->checkbox('fsNew', 1)?> <?php echo $form->text('fsNewText', array('style' => 'width: 120px', 'onclick' => '$(\'input[name=fsNew]\').attr(\'checked\',true)'))?> <?php echo $form->checkbox('fsNewShare', 1, true)?> <?php echo t('Make set public')?>
+
+<?php if (!$disableForm) { ?>
 
 	<br/><br/>
-	<?
+	<?php
 	$h = Loader::helper('concrete/interface');
 	$b1 = $h->submit(t('Update'), false, 'left');
 	print $b1;
 	?>
 	</form>
 	
-<? } ?>
+<?php } ?>
+</div>

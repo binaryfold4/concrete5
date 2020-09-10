@@ -1,11 +1,11 @@
-<?
+<?php
 defined('C5_EXECUTE') or die("Access Denied.");
 $canRead = false;
 $ch = Page::getByID($_REQUEST['cID']);
 $path = $ch->getCollectionPath();
 if (strpos($path, '/dashboard') === 0) {
 	$cp = new Permissions($ch);
-	if ($cp->canRead()) {
+	if ($cp->canViewPage()) {
 		$canRead = true;
 	}
 }

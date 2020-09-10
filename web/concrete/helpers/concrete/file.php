@@ -1,4 +1,4 @@
-<?
+<?php
 /**
  * @package Helpers
  * @category Concrete
@@ -92,14 +92,25 @@
 				$d3 = substr($prefix, 8);
 				
 				if ($createDirectories) { 
+					if (!is_dir($base)) { 
+						@mkdir($base, DIRECTORY_PERMISSIONS_MODE, TRUE); 
+						@chmod($base, DIRECTORY_PERMISSIONS_MODE); 
+						@touch($base . '/' . $d1 . '/index.html');
+					} 
 					if (!is_dir($base . '/' . $d1)) { 
-						@mkdir($base . '/' . $d1, 0777, TRUE); 
+						@mkdir($base . '/' . $d1, DIRECTORY_PERMISSIONS_MODE, TRUE); 
+						@chmod($base . '/' . $d1, DIRECTORY_PERMISSIONS_MODE); 
+						@touch($base . '/' . $d1 . '/index.html');
 					} 
 					if (!is_dir($base . '/' . $d1 . '/' . $d2)) { 
-						@mkdir($base . '/' . $d1 . '/' . $d2, 0777, TRUE); 
+						@mkdir($base . '/' . $d1 . '/' . $d2, DIRECTORY_PERMISSIONS_MODE, TRUE); 
+						@chmod($base . '/' . $d1 . '/' . $d2, DIRECTORY_PERMISSIONS_MODE); 
+						@touch($base . '/' . $d1 . '/' . $d2 . '/index.html');
 					} 
 					if (!is_dir($base . '/' . $d1 . '/' . $d2 . '/' . $d3)) { 
-						@mkdir($base . '/' . $d1 . '/' . $d2 . '/' . $d3, 0777, TRUE); 
+						@mkdir($base . '/' . $d1 . '/' . $d2 . '/' . $d3, DIRECTORY_PERMISSIONS_MODE, TRUE); 
+						@chmod($base . '/' . $d1 . '/' . $d2 . '/' . $d3, DIRECTORY_PERMISSIONS_MODE); 
+						@touch($base . '/' . $d1 . '/' . $d2 . '/' . $d3 . '/index.html');
 					} 
 				}
 				
@@ -124,7 +135,7 @@
 						$current_file_stats = stat(DIR_FILES_INCOMING .'/'. $file);
 						
 						$incoming_file_information[$cnt]['name'] = $file;
-			            $incoming_file_information[$cnt]['size'] = floor($current_file_stats[7] / 1000); // Fetch for Kb
+						$incoming_file_information[$cnt]['size'] = $current_file_stats[7];
 			        
 						$cnt++;
 					}

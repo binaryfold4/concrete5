@@ -1,29 +1,15 @@
-<?
+<?php
 	defined('C5_EXECUTE') or die("Access Denied.");
-	
 	# Filename: _process.php
-	# Author: Andrew Embler (andrew@bluepavo.com)
+	# Author: Andrew Embler (andrew@concrete5.org)
 	# -------------------
 	# _process.php is included at the top of the dispatcher and basically
 	# checks to see if a any submits are taking place. If they are, then
 	# _process makes sure that they're handled correctly
 	
-	//just trying to prevent duplication of this code
-	function processMetaData($nvc){			
-		Loader::model('collection_attributes');
-		$nvc->clearCollectionAttributes($_POST['selectedAKIDs']);
-		if (is_array($_POST['selectedAKIDs'])) {
-			foreach($_POST['selectedAKIDs'] as $akID) {
-				if ($akID > 0) {
-					$ak = CollectionAttributeKey::getByID($akID);
-					$ak->saveAttributeForm($nvc);
-				}
-			} 
-		}
-	}
 	
 	// Modification for step editing
-	$step = ($_REQUEST['step']) ? '&step=' . $_REQUEST['step'] : '';
+	$step = (isset($_REQUEST['step']) && $_REQUEST['step']) ? '&step=' . urlencode($_REQUEST['step']) : '';
 	
 	// if we don't have a valid token we die
 	$valt = Loader::helper('validation/token');
@@ -34,28 +20,107 @@
 		$u = new User();
 		$u->refreshCollectionEdit($c);
 	}
-	if ($_REQUEST['btask'] && $valt->validate()) {
+
+	$securityHelper = Loader::helper('security');
+
+	if (isset($_REQUEST['btask']) && $_REQUEST['btask'] && $valt->validate()) {
 	
 		// these are tasks dealing with blocks (moving up, down, removing)
 		
 		switch ($_REQUEST['btask']) {
 			case 'ajax_do_arrange': /* called via ajax */
-				if ($cp->canWrite()) {
+				if ($cp->canEditPageContents()) {
 					$nvc = $c->getVersionToModify();
-					$nvc->processArrangement($_POST['area']);
+					$doProcessArrangement = true;
+					$sourceAreaID = intval($_POST['sourceBlockAreaID']);
+					$destinationAreaID = intval($_POST['destinationBlockAreaID']);
+					$affectedAreaIDs = array();
+					$affectedAreaIDs[] = $sourceAreaID;
+					if ($sourceAreaID != $destinationAreaID) {
+						$affectedAreaIDs[] = $destinationAreaID;
+					}
+					if (PERMISSIONS_MODEL == 'advanced') {
+						// first, we check to see if we have permissions to edit the area contents for the source area.
+						$arHandle = Area::getAreaHandleFromID($sourceAreaID);
+						$ar = Area::getOrCreate($nvc, $arHandle);
+						$ap = new Permissions($ar);
+						if (!$ap->canEditAreaContents()) {
+							$r = new stdClass;
+							$r->error = true;
+							$doProcessArrangement = false;
+							$r->message = t('You may not arrange the contents of area %s.', $arHandle);
+						} else {
+							// now we get further in. We check to see if we're dealing with both a source AND a destination area.
+							// if so, we check the area permissions for the destination area.
+							if ($sourceAreaID != $destinationAreaID) {
+								$destAreaHandle = Area::getAreaHandleFromID($destinationAreaID);
+								$destArea = Area::getOrCreate($nvc, $destAreaHandle);
+								$destAP = new Permissions($destArea);
+								if (!$destAP->canEditAreaContents()) {
+									$r = new stdClass;
+									$r->error = true;
+									$doProcessArrangement = false;
+									$r->message = t('You may not arrange the contents of area %s.', $destAreaHandle);
+								} else {
+									// we're not done yet. Now we have to check to see whether this user has permission to add
+									// a block of this type to the destination area.
+									$b = Block::getByID($_REQUEST['sourceBlockID'], $nvc, $arHandle);
+									if ($b) {
+										$bt = $b->getBlockTypeObject();
+										if (!$destAP->canAddBlock($bt)) {
+											$doProcessArrangement = false;
+											$r = new stdClass;
+											$r->error = true;
+											$r->message = t('You may not add %s to area %s.', t($bt->getBlockTypeName()), $destAreaHandle);
+										}
+									}
+								}
+							}							
+						}
+
+						// now, if we get down here and $doProcessArrangement is still set to true, we perform the arrangement
+						// it will be set to true if we're in simple permissions mode, or if we've passed all the checks
+					}
+
+					if ($doProcessArrangement) {
+						$nvc->processArrangement($_POST['area'], $affectedAreaIDs);
+					}
+
+					if (!is_object($r)) {
+						$r = new stdClass;
+						$r->error = false;
+					}
+
+				} else {
+					$r = new stdClass;
+					$r->error = true;
+					$r->message = t('Access Denied');
 				}
 				
+				print Loader::helper('json')->encode($r);
 				exit;
-				
 				break;
 			case 'remove':
 				$a = Area::get($c, $_REQUEST['arHandle']);
 				if (is_object($a)) {
-					$b = Block::getByID($_REQUEST['bID'], $c, $a);
+					$ax = $a;
+					$cx = $c;
+					if ($a->isGlobalArea()) {
+						$ax = STACKS_AREA_NAME;
+						$cx = Stack::getByName($_REQUEST['arHandle']);
+					}
+
+					$b = Block::getByID($_REQUEST['bID'], $cx, $ax);
 					$p = new Permissions($b); // might be block-level, or it might be area level
 					// we're removing a particular block of content
 					if ($p->canDeleteBlock()){
-						$nvc = $c->getVersionToModify();
+						$nvc = $cx->getVersionToModify();
+
+						if ($a->isGlobalArea()) {
+							$xvc = $c->getVersionToModify(); // we need to create a new version of THIS page as well.
+							$xvc->relateVersionEdits($nvc);
+						}
+
 						$b->loadNewCollection($nvc);
 						
 						$b->deleteBlock();
@@ -64,8 +129,10 @@
 						if (isset($_POST['isAjax'])) {
 							exit;
 						}
+
+						$cID = $securityHelper->sanitizeInt($_GET['cID']);
 						
-						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $_GET['cID'] . '&mode=edit' . $step);
+						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $cID . '&mode=edit' . $step);
 						exit;
 					}
 				}
@@ -73,9 +140,16 @@
 			case 'update_block_css': 
 				$a = Area::get($c, $_REQUEST['arHandle']);
 				if (is_object($a)) {
-					$b = Block::getByID($_REQUEST['bID'], $c, $a);
+					$ax = $a;
+					$cx = $c;
+					if ($a->isGlobalArea()) {
+						$ax = STACKS_AREA_NAME;
+						$cx = Stack::getByName($_REQUEST['arHandle']);
+					}
+
+					$b = Block::getByID($_REQUEST['bID'], $cx, $ax);
 					$p = new Permissions($b);
-					if ($p->canWrite()){ 					
+					if ($p->canEditBlockDesign()){ 					
 						
 						$updateAll = false;
 						$scrapbookHelper=Loader::helper('concrete/scrapbook'); 
@@ -86,7 +160,11 @@
 						
 						Loader::model('custom_style');						
 						
-						$nvc = $c->getVersionToModify();
+						$nvc = $cx->getVersionToModify();
+						if ($a->isGlobalArea()) {
+							$xvc = $c->getVersionToModify(); // we need to create a new version of THIS page as well.
+							$xvc->relateVersionEdits($nvc);
+						}
 						$b->loadNewCollection($nvc);
 						
 						//if this block is being changed, make sure it's a new version of the block.
@@ -116,36 +194,13 @@
 							}
 						}
 
-						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $_GET['cID'] . '&mode=edit' . $step);				
+						$cID = $securityHelper->sanitizeInt($_GET['cID']);
+
+						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $cID . '&mode=edit' . $step);				
 					}
 				}
 				break;
-			case 'update_groups':
-				$a = Area::get($c, $_GET['arHandle']);
-				if (is_object($a)) {
-					$b = Block::getByID($_GET['bID'], $c, $a); 
-					$p = new Permissions($b);
-					// we're updating the groups for a particular block
-					if ($p->canAdminBlock()) {
-						$nvc = $c->getVersionToModify();
-						$b->loadNewCollection($nvc);
-						if ($c->isMasterCollection()) {
-							$b->updateBlockGroups(true);
-						} else {
-							$b->updateBlockGroups();
-						}
-						
-						$obj = new stdClass;
-						$obj->bID = $b->getBlockID();
-						$obj->aID = $a->getAreaID();
-						$obj->arHandle= $a->getAreaHandle();
-						$obj->error = false;
-						
-						print Loader::helper('json')->encode($obj);
-						exit;
-					}
-				}
-				break;
+
 			case 'mc_alias':
 				$a = Area::get($c, $_GET['arHandle']);
 				if (is_object($a)) {
@@ -164,9 +219,11 @@
 						if (is_array($_POST['checkedCIDs'])) {
 							foreach($_POST['checkedCIDs'] as $cID) {
 								if (!(is_array($_POST['cIDs'])) || (!in_array($cID, $_POST['cIDs']))) {
-									$nc = Page::getByID($cID);
+									$nc = Page::getByID($cID, 'RECENT');
 									$nb = Block::getByID($_GET['bID'], $nc, $a);
-									$nb->deleteBlock();
+									if (is_object($nb) && (!$nb->isError())) {
+										$nb->deleteBlock();
+									}
 									$nc->rescanDisplayOrder($_REQUEST['arHandle']);								
 								}
 								
@@ -187,14 +244,45 @@
 				break;
 			case 'update_information':
 				$a = Area::get($c, $_GET['arHandle']);
-				$b = Block::getByID($_GET['bID'], $c, $a);
+				$ax = $a; 
+				$cx = $c;
+				if ($a->isGlobalArea()) {
+					$ax = STACKS_AREA_NAME;
+					$cx = Stack::getByName($_REQUEST['arHandle']);
+				}
+				$b = Block::getByID($_REQUEST['bID'], $cx, $ax);
 				$p = new Permissions($b);
-				// we're updating the groups for a particular block
-				if ($p->canWrite()) {
-					
-					$nvc = $c->getVersionToModify();
-					$b->loadNewCollection($nvc);
+				if ($p->canEditBlockCustomTemplate()) {
 
+					$bt = BlockType::getByHandle($b->getBlockTypeHandle());
+					if (!$bt->includeAll()) {
+						// we make sure to create a new version, if necessary				
+						$nvc = $cx->getVersionToModify();
+					} else {
+						$nvc = $cx; // keep the same one
+					}
+					if ($a->isGlobalArea()) {
+						$xvc = $c->getVersionToModify(); // we need to create a new version of THIS page as well.
+						$xvc->relateVersionEdits($nvc);
+					}
+
+					$b = Block::getByID($_REQUEST['bID'], $nvc, $ax);
+					$ob = $b;
+					if ($b->getBlockTypeHandle() == BLOCK_HANDLE_SCRAPBOOK_PROXY) {
+						$bi = $b->getInstance();
+						$ob = Block::getByID($bi->getOriginalBlockID());
+						$originalDisplayOrder = $b->getBlockDisplayOrder();
+						$ob->setBlockAreaObject($a);
+						$nb = $ob->duplicate($nvc);
+						$nb->setAbsoluteBlockDisplayOrder($originalDisplayOrder);
+						$b->deleteBlock();
+						$b = &$nb;
+					} else if ($b->isAlias()) {					
+						$nb = $ob->duplicate($nvc);
+						$b->deleteBlock();
+						$b = &$nb;
+					}
+					
 					$data = $_POST;					
 					$b->updateBlockInformation($data);
 					$b->refreshCacheAll();
@@ -204,7 +292,8 @@
 					$obj->aID = $a->getAreaID();
 					$obj->arHandle= $a->getAreaHandle();
 					$obj->error = false;
-					
+					$obj->cID = $c->getCollectionID();
+	
 					print Loader::helper('json')->encode($obj);
 					exit;
 					
@@ -241,40 +330,91 @@
 				break;
 			case 'passthru':
 				if (isset($_GET['bID']) && isset($_GET['arHandle'])) {
-					$a = Area::get($c, $_GET['arHandle']);
-					$b = Block::getByID($_GET['bID'], $c, $a);
-					// basically, we hand off the current request to the block
-					// which handles permissions and everything
-					$p = new Permissions($b);
-					if ($p->canRead()) {
-						$action = $b->passThruBlock($_REQUEST['method']);
+					$vn = Loader::helper('validation/numbers');
+					if ($vn->integer($_GET['bID'])) {
+						$b = Block::getByID($_GET['bID']);
+						if (is_object($b)) {
+							$a = Area::get($c, $_GET['arHandle']);
+							$b = Block::getByID($_GET['bID'], $c, $a);
+							// basically, we hand off the current request to the block
+							// which handles permissions and everything
+							$p = new Permissions($b);
+							if ($p->canViewBlock()) {
+								if (!is_object($b)) {
+									exit;
+								}
+								$action = $b->passThruBlock($_REQUEST['method']);
+							}
+						}
+					}
+				}
+				break;
+			case 'passthru_stack':
+				if (isset($_GET['bID'])) {
+					$vn = Loader::helper('validation/numbers');
+					if ($vn->integer($_GET['bID'])) {
+						$b = Block::getByID($_GET['bID'], Page::getByID($_REQUEST['stackID'], 'ACTIVE'), STACKS_AREA_NAME);
+						if (is_object($b)) {
+							$p = new Permissions($b);
+							if ($p->canViewBlock()) {
+								$action = $b->passThruBlock($_REQUEST['method']);
+							}
+						}
 					}
 				}
 				break;
 		}
 	}
 	
-	if ($_GET['atask'] && $valt->validate()) {
+	if (isset($_GET['atask']) && $_GET['atask'] && $valt->validate()) {
 		switch($_GET['atask']) { 		
-			case 'update':
-				if ($cp->canAdminPage()) {
-					$area = Area::get($c, $_GET['arHandle']);
-					if (is_object($area)) {
-						if ($_POST['aRevertToPagePermissions']) {
-							$area->revertToPagePermissions();		
-						} else {
-							$area->update($_POST['attribKey'], $_POST['attribValue']);
+			case 'add_stack':
+				$a = Area::get($c, $_GET['arHandle']);
+				$cx = $c;
+				$ax = $a;
+
+				if ($a->isGlobalArea()) {
+					$cx = Stack::getByName($_REQUEST['arHandle']);
+					$ax = Area::get($cx, STACKS_AREA_NAME);
+				}
+				$obj = new stdClass;
+
+				$ap = new Permissions($ax);	
+				$stack = Stack::getByID($_REQUEST['stID']);
+				if (is_object($stack)) {
+					if ($ap->canAddStackToArea($stack)) {
+						// we've already run permissions on the stack at this point, at least for viewing the stack.
+						$btx = BlockType::getByHandle(BLOCK_HANDLE_STACK_PROXY);
+						$nvc = $cx->getVersionToModify();
+						if ($a->isGlobalArea()) {
+							$xvc = $c->getVersionToModify(); // we need to create a new version of THIS page as well.
+							$xvc->relateVersionEdits($nvc);
 						}
+						$data['stID'] = $stack->getCollectionID();
+						$nb = $nvc->addBlock($btx, $ax, $data);
+
+						$obj->aID = $a->getAreaID();
+						$obj->arHandle = $a->getAreaHandle();
+						$obj->cID = $c->getCollectionID();
+						$obj->bID = $nb->getBlockID();
+						$obj->error = false;
+					} else {
+						$obj->error = true;
+						$obj->response = array(t('The stack contains invalid block types.'));
 					}
-					
-					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $_GET['cID'] . '&mode=edit' . $step);
-					exit;
-				}				
+				} else {
+					$obj->error = true;
+					$obj->response = array(t('Invalid stack.'));
+				}
+
+				print Loader::helper('json')->encode($obj);
+				exit;
+
 				break;
 			case 'design':
 				$area = Area::get($c, $_GET['arHandle']);
 				$ap = new Permissions($area);
-				if ($ap->canWrite() ) {
+				if ($ap->canEditAreaDesign() ) {
 					Loader::model('custom_style');				
 					
 					$nvc = $c->getVersionToModify();
@@ -299,14 +439,16 @@
 						}
 					}
 
-					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $_GET['cID'] . '&mode=edit' . $step);
+					$cID = $securityHelper->sanitizeInt($_GET['cID']);
+
+					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $cID . '&mode=edit' . $step);
 					exit;
 				}
 				break; 
 			case 'layout':
 				$area = Area::get($c, $_GET['arHandle']);
 				$ap = new Permissions($area);
-				if ($ap->canWrite() ) {
+				if ($ap->canAddLayoutToArea() ) {
 					Loader::model('custom_style');				
 					
 					$nvc = $c->getVersionToModify();
@@ -375,9 +517,13 @@
 						//see above
 					}elseif( $cvalID ){
 						//get the cval of the record that corresponds to this version & area 
-						$vals = array( $nvc->getCollectionID(), $nvc->getVersionID(), $_GET['arHandle'], intval($_REQUEST['layoutID']) );
-						$cvalID = intval($db->getOne('SELECT cvalID FROM CollectionVersionAreaLayouts WHERE cID=? AND cvID=? AND arHandle=? AND layoutID=? ',$vals));	
+						if (isset($_REQUEST['areaNameNumber']) && intval($_REQUEST['areaNameNumber'])){
+							//$vals = array( $nvc->getCollectionID(), $nvc->getVersionID(), $_GET['arHandle'], intval($originalLayoutID) );
+							//$cvalID = intval($db->getOne('SELECT cvalID FROM CollectionVersionAreaLayouts WHERE cID=? AND cvID=? AND arHandle=? AND layoutID=? ',$vals));
+							$vals = array( $nvc->getCollectionID(), $nvc->getVersionID(), $_GET['arHandle'], intval($_REQUEST['areaNameNumber']) );
+							$cvalID = intval($db->getOne('SELECT cvalID FROM CollectionVersionAreaLayouts WHERE cID=? AND cvID=? AND arHandle=? AND areaNameNumber=? ',$vals));	
 						if($updateLayoutId) $nvc->updateAreaLayoutId( $cvalID, $layout->layoutID);  
+						}
 					}else{  
 						$nvc->addAreaLayout($area, $layout, $position);  
 					} 					
@@ -387,73 +533,78 @@
 						if(strlen(trim($newPresetName))) LayoutPreset::add(trim($newPresetName), $layout);
 					}	
 
-					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $_GET['cID'] . '&mode=edit' . $step);
+					$cID = $securityHelper->sanitizeInt($_GET['cID']);
+
+					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $cID . '&mode=edit' . $step);
 					exit;
 				}				
 				break;					
 		}
 	}
 	
-	if ($_REQUEST['ctask'] && $valt->validate()) {
+	if (isset($_REQUEST['ctask']) && $_REQUEST['ctask'] && $valt->validate()) {
 		
 		switch ($_REQUEST['ctask']) {
 			case 'delete':
-				if ($cp->canDeleteCollection() && $c->getCollectionID != '1' && (!$c->isMasterCollection())) {
+				if ($cp->canDeletePage() && $c->getCollectionID() != '1' && (!$c->isMasterCollection())) {
 					$children = $c->getNumChildren();
-					if ($children == 0 || $cp->canAdminPage()) {
-						$c->markPendingAction('DELETE');
-						if ($cp->canApproveCollection()) {
-							$cParentID = $c->getCollectionParentID();
-							$c->approvePendingAction();
-							header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $cParentID . $step);
-							exit;
+					if ($children == 0 || $u->isSuperUser()) {
+						$obj = new stdClass;
+
+						if ($c->isExternalLink()) {
+							$c->delete();
+						} else { 
+							$obj->refreshCID = $c->getCollectionID();
+							$pkr = new DeletePagePageWorkflowRequest();
+							$pkr->setRequestedPage($c);
+							$pkr->setRequesterUserID($u->getUserID());
+							$u->unloadCollectionEdit($c);
+							$response = $pkr->trigger();
+							$obj->deferred = true;
+							if ($response instanceof WorkflowProgressResponse) {
+								// we only get this response if we have skipped workflows and jumped straight in to an approve() step.
+								$obj->refreshCID = $c->getCollectionParentID();
+								$obj->deferred = false;
+							}
 						}
 					}
-					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $c->getCollectionID() . '&ctask=mcd' . $step);
+					$cParentID = $c->getCollectionParentID();
+					$obj->rel = $_REQUEST['rel'];
+					$obj->cParentID = $cParentID;
+					$obj->cID = $c->getCollectionID();
+					$obj->display_mode = $_REQUEST['display_mode'];
+					$obj->select_mode = $_REQUEST['select_mode'];
+					$obj->instance_id = $_REQUEST['instance_id'];
+					print Loader::helper('json')->encode($obj);
 					exit;
+
 				}
-			case 'clear_pending_action':
-				if ($cp->canApproveCollection() || $u->getUserID() == $c->getPendingActionUserID()) {
-					$c->clearPendingAction();
-					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $c->getCollectionID() . '&ctask=mcd' . $step);
-					exit;
-				}
-			case 'approve_pending_action':
-				if ($cp->canApproveCollection() && $cp->canWrite() && !$isCheckedOut) {
-					$approve = false;
-					if ($c->isPendingDelete()) {
-						$children = $c->getNumChildren();
-						if ($children == 0 || $cp->canAdminPage()) {
-							$approve = true;
-							$cParentID = $c->getCollectionParentID();
-						}
-					} else {
-						$approve = true;
-					}
-					
-					if ($approve) {
-						$c->approvePendingAction();
-					}
-					
-					if ($c->isPendingDelete() && $approve) {
-						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $cParentID . $step);
-						exit;
-					} else {
-						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $c->getCollectionID() . $step);
-						exit;
-					}
-				}
-				break;
 			case 'remove-alias':
-				if ($cp->canWrite()) {
+				if ($cp->canDeletePage()) {
 					$redir = $c->removeThisAlias();
-					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $redir . $step);
-					exit;
+					if ($_POST['rel'] == 'SITEMAP') { 
+						$obj = new stdClass;
+						$obj->rel = $_REQUEST['rel'];
+						$obj->cParentID = $c->getCollectionParentID();
+						if ($c->getCollectionPointerOriginalID() != '') { 
+							$obj->cID = $c->getCollectionPointerOriginalID();
+						} else {
+							$obj->cID = $c->getCollectionID();
+						}
+						$obj->display_mode = $_REQUEST['display_mode'];
+						$obj->select_mode = $_REQUEST['select_mode'];
+						$obj->instance_id = $_REQUEST['instance_id'];
+						print Loader::helper('json')->encode($obj);
+						exit;
+					} else { 
+						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $redir . $step);
+						exit;
+					}
 				}
 				break;
 			case 'check-out':
 			case 'check-out-first':
-				if ($cp->canWrite() || $cp->canApproveCollection()) {
+				if ($cp->canEditPageContents() || $cp->canEditPageProperties() || $cp->canApprovePageVersions()) {
 					// checking out the collection for editing
 					$u = new User();
 					$u->loadCollectionEdit($c);
@@ -470,36 +621,43 @@
 				}
 				break;
 			case 'check-in':
-				if ($cp->canWrite() || $cp->canApproveCollection()) {
-
-					if ($_REQUEST['approve'] == 'APPROVE' && $cp->canApproveCollection()) {
-						$u->unloadCollectionEdit(false);
-					} else {
-						$u->unloadCollectionEdit();
-					}
+				if ($cp->canEditPageContents() || $cp->canEditPageProperties() || $cp->canApprovePageVersions()) {
 
 					$v = CollectionVersion::get($c, "RECENT");
 					
 					$v->setComment($_REQUEST['comments']);
-					if ($_REQUEST['approve'] == 'APPROVE' && $cp->canApproveCollection()) {
-						$v->approve();
+					if ($_REQUEST['approve'] == 'APPROVE' && $cp->canApprovePageVersions()) {
+						$pkr = new ApprovePagePageWorkflowRequest();
+						$pkr->setRequestedPage($c);
+						$pkr->setRequestedVersionID($v->getVersionID());
+						$pkr->setRequesterUserID($u->getUserID());
+						$u->unloadCollectionEdit($c);
+						$response = $pkr->trigger();
 					} 
-					
-					if ($_REQUEST['approve'] == 'DISCARD') {
+
+					if ($_REQUEST['approve'] == 'DISCARD' && $v->canDiscard()) {
 						$v->discard();
 					} else {
 						$v->removeNewStatus();
 					}
+
+					$u->unloadCollectionEdit();
+
+					
 					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $c->getCollectionID() . $step);
 					exit;
 				}
 				break;
 			case 'approve-recent':
-				if ($cp->canApproveCollection()) {
-					// checking out the collection for editing
+				if ($cp->canApprovePageVersions()) {
+					$u = new User();
+					$pkr = new ApprovePagePageWorkflowRequest();
+					$pkr->setRequestedPage($c);
 					$v = CollectionVersion::get($c, "RECENT");
-					$v->setComment($_REQUEST['comments']);
-					$v->approve();
+					$pkr->setRequestedVersionID($v->getVersionID());
+					$pkr->setRequesterUserID($u->getUserID());
+					$u->unloadCollectionEdit($c);
+					$response = $pkr->trigger();
 					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $c->getCollectionID() . $step);
 					exit;
 				}
@@ -508,7 +666,7 @@
 		}
 	}			
 	
-	if ($_REQUEST['ptask'] && $valt->validate()) {
+	if (isset($_REQUEST['ptask']) && $_REQUEST['ptask'] && $valt->validate()) {
 		Loader::model('pile');
 
 		// piles !
@@ -522,7 +680,8 @@
 						$pc->delete();
 					}
 					if ($pcID && ($_REQUEST['sbURL'])) {
-						header('Location: ' . BASE_URL . $_GET['sbURL']);
+						$sbURL = $securityHelper->sanitizeInt($_GET['sbURL']);
+						header('Location: ' . BASE_URL . $sbURL);
 						exit;
 					}
 				//global scrapbooks
@@ -546,7 +705,7 @@
 		}
 	}
 	
-	if ($_REQUEST['processBlock'] && $valt->validate()) {
+	if (isset($_REQUEST['processBlock']) && $_REQUEST['processBlock'] && $valt->validate()) {
 		
 		// some admin (or unscrupulous person) is doing something to a block of content on the site
 		$edit = ($_REQUEST['enterViewMode']) ? "" : "&mode=edit";
@@ -555,44 +714,73 @@
 			// the person is attempting to update some block of content
 
 			$a = Area::get($c, $_GET['arHandle']);
-			
-			$b = Block::getByID($_REQUEST['bID'], $c, $a);
+			$ax = $a; 
+			$cx = $c;
+			if ($a->isGlobalArea()) {
+				$ax = STACKS_AREA_NAME;
+				$cx = Stack::getByName($_REQUEST['arHandle']);
+			}
+			$b = Block::getByID($_REQUEST['bID'], $cx, $ax);
 			$p = new Permissions($b);
 			
 			if ($p->canWrite()) {
 
 				$bi = $b->getInstance();
+				if ($b->getBlockTypeHandle() == BLOCK_HANDLE_SCRAPBOOK_PROXY) {
+					$_b = Block::getByID($bi->getOriginalBlockID());
+					$bi = $_b->getInstance(); // for validation
+				}
 				$e = $bi->validate($_POST);
 				$obj = new stdClass;
 				$obj->aID = $a->getAreaID();
 				$obj->arHandle = $a->getAreaHandle();
 				$obj->cID = $c->getCollectionID();
-				$scrapbookHelper=Loader::helper('concrete/scrapbook'); 
-				$c1 = $scrapbookHelper->getGlobalScrapbookPage();					
-				if ($c1->getCollectionID() == $c->getCollectionID()) {
-					$obj->isGlobalBlock = true;
-					$obj->cID = $_REQUEST['rcID'];
-					$obj->arHandle = $_REQUEST['rarHandle'];
-					$a1 = Area::getOrCreate(Page::getByID($obj->cID), $obj->arHandle);
-					$obj->aID = $a1->getAreaID();
-				} else {
-					$obj->isGlobalBlock = false;
-				}
-				
+
 				if ((!is_object($e)) || (($e instanceof ValidationErrorHelper) && (!$e->has()))) {
 					$bt = BlockType::getByHandle($b->getBlockTypeHandle());
 					if (!$bt->includeAll()) {
 						// we make sure to create a new version, if necessary				
-						$nvc = $c->getVersionToModify();
+						$nvc = $cx->getVersionToModify();
 					} else {
-						$nvc = $c; // keep the same one
+						$nvc = $cx; // keep the same one
 					}
+					
+					if ($a->isGlobalArea()) {
+						$xvc = $c->getVersionToModify(); // we need to create a new version of THIS page as well.
+						$xvc->relateVersionEdits($nvc);
+					}
+					
 					$ob = $b;
 					// replace the block with the version of the block in the later version (if applicable)
-					$b = Block::getByID($_REQUEST['bID'], $nvc, $a);
+					$b = Block::getByID($_REQUEST['bID'], $nvc, $ax);				
 					
-					
-					if ($b->isAlias()) {
+					if ($b->getBlockTypeHandle() == BLOCK_HANDLE_SCRAPBOOK_PROXY) {
+						// if we're editing a scrapbook display block, we add a new block in this position for the real block type
+						// set the block to the display order
+						// delete the scrapbook display block, and save the data
+						/*
+						$originalDisplayOrder = $b->getBlockDisplayOrder();
+						$btx = BlockType::getByHandle($_b->getBlockTypeHandle());
+						$nb = $nvc->addBlock($btx, $ax, array());
+						$nb->setAbsoluteBlockDisplayOrder($originalDisplayOrder);
+						$b->deleteBlock();
+						$b = &$nb;
+						*/
+						
+						$originalDisplayOrder = $b->getBlockDisplayOrder();
+						$cnt = $b->getController();
+						$ob = Block::getByID($cnt->getOriginalBlockID());
+						$ob->loadNewCollection($nvc);
+						if (!is_object($ax)) {
+							$ax = Area::getOrCreate($cx, $ax);
+						}
+						$ob->setBlockAreaObject($ax);
+						$nb = $ob->duplicate($nvc);
+						$nb->setAbsoluteBlockDisplayOrder($originalDisplayOrder);
+						$b->deleteBlock();
+						$b = &$nb;
+
+					} else if ($b->isAlias()) {
 	
 						// then this means that the block we're updating is an alias. If you update an alias, you're actually going
 						// to duplicate the original block, and update the newly created block. If you update an original, your changes
@@ -606,28 +794,30 @@
 					// we can update the block that we're submitting
 					$b->update($_POST);
 					$obj->error = false;
-					$obj->cID = $nvc->getCollectionID();
+					if (!$obj->cID) {
+						$obj->cID = $nvc->getCollectionID();
+					}
 					$obj->bID = $b->getBlockID();
 				} else {
 					$obj->error = true;
 					$obj->response = $e->getList();
 				}
 				
-				if ($_POST['ccm-block-form-method'] == 'AJAX') { 
-					print Loader::helper('json')->encode($obj);
-					exit;
-				} else {
-					$redirectCID = (intval($_REQUEST['rcID'])) ? intval($_REQUEST['rcID']) : intval($_REQUEST['cID']);
-					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $redirectCID . $edit . $step);
-					exit;
-				}
+				print Loader::helper('json')->encode($obj);
+				exit;
 			}
 						
 		} else if ($_REQUEST['add'] || $_REQUEST['_add']) {
 			// the persion is attempting to add a block of content of some kind
 			$a = Area::get($c, $_REQUEST['arHandle']);
 			if (is_object($a)) {
-				$ap = new Permissions($a);	
+				$ax = $a;
+				$cx = $c;
+				if ($a->isGlobalArea()) {
+					$cx = Stack::getByName($_REQUEST['arHandle']);
+					$ax = Area::get($cx, STACKS_AREA_NAME);
+				}
+				$ap = new Permissions($ax);	
 				if ($_REQUEST['btask'] == 'alias_existing_block') {
 					if (is_array($_REQUEST['pcID'])) {		
 						Loader::model('pile');
@@ -644,45 +834,52 @@
 							if ($pc->getItemType() == "BLOCK") {
 								$bID = $pc->getItemID();
 								$b = Block::getByID($bID);
-								$b->setBlockAreaObject($a);
+								$b->setBlockAreaObject($ax);
 								$bt = BlockType::getByHandle($b->getBlockTypeHandle());
 								if ($ap->canAddBlock($bt)) {
-									if (!$bt->includeAll()) {
-										$nvc = $c->getVersionToModify();
-										$b->alias($nvc);
-									} else {
-										$b->alias($c);
+									$btx = BlockType::getByHandle(BLOCK_HANDLE_SCRAPBOOK_PROXY);
+									$nvc = $cx->getVersionToModify();
+									if ($a->isGlobalArea()) {
+										$xvc = $c->getVersionToModify(); // we need to create a new version of THIS page as well.
+										$xvc->relateVersionEdits($nvc);
 									}
+									$data['bOriginalID'] = $bID;
+									$nb = $nvc->addBlock($btx, $ax, $data);
+									$nb->refreshCache();
 								}
 							}
 						}
 					} else if (isset($_REQUEST['bID'])) {
-						if($_REQUEST['globalBlock']) {
-							$scrapbookHelper=Loader::helper('concrete/scrapbook'); 
-							$c1 = $scrapbookHelper->getGlobalScrapbookPage();			
-							$a1 = Area::get($c1, $_REQUEST['globalScrapbook']);
-							$b = Block::getByID($_REQUEST['bID'], $c1, $a1);
-						} else {
-							$b = Block::getByID($_REQUEST['bID']); 
-						}
-						$bt = BlockType::getByHandle($b->getBlockTypeHandle());						
+					
+						$b = Block::getByID($_REQUEST['bID']);
+						$b->setBlockAreaObject($ax);
+						$bt = BlockType::getByHandle($b->getBlockTypeHandle());
 						if ($ap->canAddBlock($bt)) {
-							$b->setBlockAreaObject($a);
-							if (!$bt->includeAll()) {
-								$nvc = $c->getVersionToModify();
-								$b->alias($nvc);
-							} else {
-								$b->alias($c);
+							$btx = BlockType::getByHandle(BLOCK_HANDLE_SCRAPBOOK_PROXY);
+							$nvc = $cx->getVersionToModify();
+							if ($a->isGlobalArea()) {
+								$xvc = $c->getVersionToModify(); // we need to create a new version of THIS page as well.
+								$xvc->relateVersionEdits($nvc);
 							}
-						}					
+							$data['bOriginalID'] = $_REQUEST['bID'];
+							$nb = $nvc->addBlock($btx, $ax, $data);
+							$nb->refreshCache();
+						}
 					}
-
+					
 					$obj = new stdClass;
-					$obj->aID = $a->getAreaID();
-					$obj->arHandle = $a->getAreaHandle();
-					$obj->cID = $c->getCollectionID();
-					$obj->bID = $b->getBlockID();
-					$obj->error = false;
+					if (is_object($nb)) {
+						$obj->aID = $a->getAreaID();
+						$obj->arHandle = $a->getAreaHandle();
+						$obj->cID = $c->getCollectionID();
+						$obj->bID = $nb->getBlockID();
+						$obj->error = false;
+					} else {
+						$e = Loader::helper('validation/error');
+						$e->add(t('Invalid block.'));
+						$obj->error = true;
+						$obj->response = $e->getList();
+					}
 					print Loader::helper('json')->encode($obj);
 					exit;
 				} else { 
@@ -701,13 +898,18 @@
 						$obj->cID = $c->getCollectionID();
 					
 						if ((!is_object($e)) || (($e instanceof ValidationErrorHelper) && (!$e->has()))) {
-
+							
 							if (!$bt->includeAll()) {
-								$nvc = $c->getVersionToModify();
-								$nb = $nvc->addBlock($bt, $a, $data);
+								$nvc = $cx->getVersionToModify();
+								$nb = $nvc->addBlock($bt, $ax, $data);
 							} else {
 								// if we apply to all, then we don't worry about a new version of the page
-								$nb = $c->addBlock($bt, $a, $data);
+								$nb = $cx->addBlock($bt, $ax, $data);
+							}
+							
+							if ($a->isGlobalArea() && $nvc instanceof Collection) {
+								$xvc = $c->getVersionToModify(); // we need to create a new version of THIS page as well.
+								$xvc->relateVersionEdits($nvc);
 							}
 
 							$obj->error = false;
@@ -720,13 +922,8 @@
 						
 						}
 
-						if ($_POST['ccm-block-form-method'] == 'AJAX') { 
-							print Loader::helper('json')->encode($obj);
-							exit;
-						} else {
-							header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $c->getCollectionID());
-							exit;
-						}
+						print Loader::helper('json')->encode($obj);
+						exit;
 					}
 				}
 			}
@@ -734,77 +931,25 @@
 		}	
 	}
 
-	if ($_POST['processCollection'] && $valt->validate()) { 
+	if (isset($_POST['processCollection']) && $_POST['processCollection'] && $valt->validate()) {
 
-	
-		/*
-		if ($_POST['ctask'] == 'copy') {
-			if ($cp->canWrite()) {
-				if ($_POST['cParentID']) {
-					Loader::model('collection_types');
-					$ct = CollectionType::getByID($c->getCollectionTypeID());
-					$nc = Page::getByID($_REQUEST['cParentID']);
-					$ncp = new Permissions($nc);
-					
-					if ($ncp->canAddSubCollection($ct) && $c->canMoveCopyTo($nc)) {
-						if ($_POST['copyAll'] && $ncp->canAdminPage()) {
-							$nc2 = $c->duplicateAll($nc); // new collection is passed back
-						} else {
-							$nc2 = $c->duplicate($nc);
-						}
-						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $nc2->getCollectionID() . '&ctask=mcd' . $step);
-						exit;			
-					}
-				}
-			}	
-		} else if ($_POST['ctask'] == 'alias') {
-			// moving a collection to a new location
-			if ($cp->canWrite()) {
-				if ($_POST['cParentID']) {
-					Loader::model('collection_types');
-
-					$ct = CollectionType::getByID($c->getCollectionTypeID());
-					$nc = Page::getByID($_REQUEST['cParentID']);
-					$ncp = new Permissions($nc);
-
-					User::unloadCollectionEdit();
-					if ($ncp->canAddSubCollection($ct) && $c->canMoveCopyTo($nc)) {
-						$ncID = $c->addCollectionAlias($nc);						
-						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $ncID . $step);
-						exit;			
-					}
-				}
-			}		
-		
-		} else if ($_POST['ctask'] == 'move') {
-			// moving a collection to a new location
-			if ($cp->canWrite()) {
-				if ($_POST['cParentID']) {
-					Loader::model('collection_types');
-
-					$ct = CollectionType::getByID($c->getCollectionTypeID());
-					$nc = Page::getByID($_REQUEST['cParentID']);
-					$ncp = new Permissions($nc);
-					if ($ncp->canAddSubCollection($ct) && $c->canMoveCopyTo($nc)) {
-						$c->markPendingAction('MOVE', $nc);						
-						header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $_GET['cID'] . '&ctask=mcd' . $step);
-						exit;			
-					}
-				}
-			}	
-		} else */
-		
 		if ($_POST['update_theme']) { 
-			if ($cp->canAdminPage()) {
-				$nvc = $c->getVersionToModify();
-				
-				$data = array();
+		
+			$pl = false;
+			if ($_POST['plID']) { 
 				$pl = PageTheme::getByID($_POST['plID']);
-				$c->setTheme($pl);
-				
+			}
+			
+			if ($cp->canEditPageTheme($pl) || $cp->canEditPageType()) {
+				$nvc = $c->getVersionToModify();				
+				$data = array();
+				if (is_object($pl)) { 
+					$nvc->setTheme($pl);
+				}
+
 				if (!$c->isGeneratedCollection()) {
 				
-					if ($_POST['ctID']) {
+					if ($_POST['ctID'] && $cp->canEditPageType()) {
 						// now we have to check to see if you're allowed to update this page to this page type.
 						// We do this by checking to see whether the PARENT page allows you to add this page type here.
 						// if this is the home page then we assume you are good
@@ -819,110 +964,197 @@
 						if ($c->getCollectionID() == 1 || $parentCP->canAddSubCollection($ct)) {
 							$data['ctID'] = $_POST['ctID'];
 							$nvc->update($data);
-						}
-						
+						}						
 					}
 				
 				}
-				
-				if ($_POST['rel'] == 'SITEMAP') { 
+
+				if ($_POST['rel'] == 'SITEMAP' && ($cp->canApprovePageVersions())) {
+					$pkr = new ApprovePagePageWorkflowRequest();
+					$u = new User();
+					$pkr->setRequestedPage($c);
+					$v = CollectionVersion::get($c, "RECENT");
+					$pkr->setRequestedVersionID($v->getVersionID());
+					$pkr->setRequesterUserID($u->getUserID());
+					$u->unloadCollectionEdit($c);
+					$response = $pkr->trigger();
 					$obj = new stdClass;
-					$obj->rel = 'SITEMAP';
+					$obj->rel = $_POST['rel'];
+					$obj->name = $v->getVersionName();
 					$obj->cID = $c->getCollectionID();
 					print Loader::helper('json')->encode($obj);
 					exit;
 				} else {
-					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $_GET['cID'] . '&mode=edit' . $step);
+					$cID = $securityHelper->sanitizeInt($_GET['cID']);
+					header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $cID . '&mode=edit' . $step);
 					exit;
 				}
 			}		
-		} else if ($_POST['update_metadata']) { 
+		} else if ($_POST['update_speed_settings']) {
 			// updating a collection
-			if ($cp->canWrite()) {
-				$nvc = $c->getVersionToModify();
+			if ($cp->canEditPageSpeedSettings()) {
 				
 				$data = array();
-				$data['cName'] = $_POST['cName'];
-				$data['cDescription'] = $_POST['cDescription'];
-				$data['cHandle'] = $_POST['cHandle'];
 				$data['cCacheFullPageContent'] = $_POST['cCacheFullPageContent'];
 				$data['cCacheFullPageContentLifetimeCustom'] = $_POST['cCacheFullPageContentLifetimeCustom'];
 				$data['cCacheFullPageContentOverrideLifetime'] = $_POST['cCacheFullPageContentOverrideLifetime'];				
 
-				$data['ppURL'] = array();
-				foreach ($_POST as $key=>$value) {
-					if (strpos($key, 'ppURL-') === 0) {
-						$subkey = substr($key, 6);
-						$data['ppURL'][$subkey] = $value;
+				$c->update($data);
+				
+				$obj = new stdClass;
+				$obj->name = $c->getCollectionName();
+				$obj->cID = $c->getCollectionID();
+				print Loader::helper('json')->encode($obj);
+				exit;
+			}	
+		} else if ($_POST['update_metadata']) { 
+			// updating a collection
+			if ($cp->canEditPageProperties()) {
+				$nvc = $c->getVersionToModify();
+				
+				$data = array();
+				$pk = PermissionKey::getByHandle('edit_page_properties');
+				$pk->setPermissionObject($c);
+				$asl = $pk->getMyAssignment();
+				if ($asl->allowEditName()) { 
+					$data['cName'] = $_POST['cName'];
+				}
+				if ($asl->allowEditDescription()) { 
+					$data['cDescription'] = $_POST['cDescription'];
+				}
+				if ($asl->allowEditPaths()) { 
+					$data['cHandle'] = $_POST['cHandle'];
+					$data['ppURL'] = array();
+					foreach ($_POST as $key=>$value) {
+						if (strpos($key, 'ppURL-') === 0) {
+							$subkey = substr($key, 6);
+							$data['ppURL'][$subkey] = $value;
+						}
 					}
 				}
-				
-				$dt = Loader::helper('form/date_time');
-				$dh = Loader::helper('date');
-				$data['cDatePublic'] = $dh->getSystemDateTime($dt->translate('cDatePublic'));
-				if ($cp->canAdminPage()) {
+				if ($asl->allowEditDateTime()) { 
+					$dt = Loader::helper('form/date_time');
+					$dh = Loader::helper('date');
+					$data['cDatePublic'] = $dh->getSystemDateTime($dt->translate('cDatePublic'));
+				}
+				if ($asl->allowEditUserID()) { 
 					$data['uID'] = $_POST['uID'];
 				}
 				
+                
 				$nvc->update($data);
-				processMetaData($nvc);
+				
+				// First, we check out the attributes we need to clear.
+				$setAttribs = $nvc->getSetCollectionAttributes();
+				$processedAttributes = array();
+				$selectedAKIDs = $_POST['selectedAKIDs'];
+				if (!is_array($selectedAKIDs)) {
+					$selectedAKIDs = array();					
+				}
+				foreach($setAttribs as $ak) {
+					// do I have the ability to edit this attribute?
+					if (in_array($ak->getAttributeKeyID(), $asl->getAttributesAllowedArray())) {
+						// Is this item in the selectedAKIDs array? If so then it is being saved
+						if (in_array($ak->getAttributeKeyID(), $_POST['selectedAKIDs'])) {
+							$ak->saveAttributeForm($nvc);
+						} else {
+							// it is being removed
+							$nvc->clearAttribute($ak);
+						}
+						$processedAttributes[] = $ak->getAttributeKeyID();
+					}					
+				}
+				$newAttributes = array_diff($selectedAKIDs, $processedAttributes);
+				foreach($newAttributes as $akID) {
+					if ($akID > 0 && in_array($akID, $asl->getAttributesAllowedArray())) {
+						$ak = CollectionAttributeKey::getByID($akID);
+						$ak->saveAttributeForm($nvc);
+					}
+				}
+
 				
 				$obj = new stdClass;
 
-				if ($_POST['rel'] == 'SITEMAP') { 
+				if (($_POST['rel'] == 'SITEMAP' || $_POST['approveImmediately']) && ($cp->canApprovePageVersions())) {
+					$pkr = new ApprovePagePageWorkflowRequest();
+					$u = new User();
+					$pkr->setRequestedPage($c);
+					$v = CollectionVersion::get($c, "RECENT");
+					$pkr->setRequestedVersionID($v->getVersionID());
+					$pkr->setRequesterUserID($u->getUserID());
+					$u->unloadCollectionEdit($c);
+					$response = $pkr->trigger();
 					$obj->rel = $_POST['rel'];
-					if ($cp->canApproveCollection()) {
-						$v = CollectionVersion::get($c, "RECENT");
-						$v->approve();
-						$u = new User();
-						$u->unloadCollectionEdit();
-						$obj->name = $v->getVersionName();
-					}
-					
-				} else {
-					//header('Location: ' . BASE_URL . DIR_REL . '/' . DISPATCHER_FILENAME . '?cID=' . $_GET['cID'] . '&mode=edit' . $step);
-					//exit;
+					$obj->name = $v->getVersionName();
 				}
-
+                		$nvc->reindex(false, true);
 				$obj->cID = $c->getCollectionID();
 				print Loader::helper('json')->encode($obj);
 				exit;
 			}	
 		} else if ($_POST['update_external']) {
-			if ($cp->canWrite()) {
+			$parent = Page::getByID($c->getCollectionParentID());
+			$parentP = new Permissions($parent);
+			if ($parentP->canAddExternalLink()) {
 				$ncID = $c->updateCollectionAliasExternal($_POST['cName'], $_POST['cExternalLink'], $_POST['cExternalLinkNewWindow']);						
 				header('Location: ' . URL_SITEMAP);
 				exit;
 			}
 		} else if ($_POST['update_permissions']) { 
 			// updating a collection
-			if ($cp->canAdminPage()) {
-				if (PERMISSIONS_MODEL == 'simple') {
-					$args['cInheritPermissionsFrom'] = 'OVERRIDE';
-					$args['cOverrideTemplatePermissions'] = 1;
-
-					if (is_array($_POST['readGID'])) {
-						foreach($_POST['readGID'] as $gID) {
-							$args['collectionRead'][] = 'gID:' . $gID;
-						}
-					}				
-
-					$args['collectionWrite'] = array();
-					if (is_array($_POST['editGID'])) {
-						foreach($_POST['editGID'] as $gID) {
-							$args['collectionReadVersions'][] = 'gID:' . $gID;
-							$args['collectionWrite'][] = 'gID:' . $gID;
-							$args['collectionAdmin'][] = 'gID:' . $gID;
-							$args['collectionDelete'][] = 'gID:' . $gID;
-						}
-					}				
-					$c->updatePermissions($args);
-				} else {
-					$c->updatePermissions();
-				}
+			if ($cp->canEditPagePermissions() && PERMISSIONS_MODEL == 'simple') {
 
 				$obj = new stdClass;
+				$c->setPermissionsToManualOverride();
 
+				$pk = PermissionKey::getByHandle('view_page');
+				$pk->setPermissionObject($c);
+				$pt = $pk->getPermissionAssignmentObject();
+				$pt->clearPermissionAssignment();
+				$pa = PermissionAccess::create($pk);
+				
+				if (is_array($_POST['readGID'])) {
+					foreach($_POST['readGID'] as $gID) {
+						$pa->addListItem(GroupPermissionAccessEntity::getOrCreate(Group::getByID($gID)));
+					}
+				}				
+				$pt->assignPermissionAccess($pa);
+				
+				$editAccessEntities = array();
+				if (is_array($_POST['editGID'])) {
+					foreach($_POST['editGID'] as $gID) {
+						$editAccessEntities[] = GroupPermissionAccessEntity::getOrCreate(Group::getByID($gID));
+					}
+				}
+				
+				$editPermissions = array(
+					'view_page_versions',
+					'edit_page_properties',
+					'edit_page_contents',
+					'edit_page_speed_settings',
+					'edit_page_theme',
+					'edit_page_type',
+					'edit_page_permissions',
+					'preview_page_as_user',
+					'schedule_page_contents_guest_access',
+					'delete_page',
+					'delete_page_versions',
+					'approve_page_versions',
+					'add_subpage',
+					'move_or_copy_page',
+				);
+				foreach($editPermissions as $pkHandle) { 
+					$pk = PermissionKey::getByHandle($pkHandle);
+					$pk->setPermissionObject($c);
+					$pt = $pk->getPermissionAssignmentObject();
+					$pt->clearPermissionAssignment();
+					$pa = PermissionAccess::create($pk);
+					foreach($editAccessEntities as $editObj) {
+						$pa->addListItem($editObj);
+					}
+					$pt->assignPermissionAccess($pa);
+				}
+				
 				if ($_POST['rel'] == 'SITEMAP') { 
 					$u = new User();
 					$u->unloadCollectionEdit();
@@ -935,14 +1167,13 @@
 				$obj->cID = $c->getCollectionID();
 				print Loader::helper('json')->encode($obj);
 				exit;
-
-			}	
+			}
 		} else if ($_POST['add']) { 
 			// adding a collection to a collection
 			Loader::model('collection_types');
 
 			$ct = CollectionType::getByID($_POST['ctID']);
-			if ($cp->canAddSubContent($ct)) {		
+			if ($cp->canAddSubpage($ct)) {		
 				// the $c below identifies that we're adding a collection _to_ that particular collection object
 				//$newCollectionID = $ct->addCollection($c);				
 				
@@ -954,17 +1185,28 @@
 				$data['cDatePublic'] = $dh->getSystemDateTime($dt->translate('cDatePublic'));	
 				
 				$nc = $c->add($ct, $data);
-				
-				$nvc = $nc->getVersionToModify();
-				processMetaData($nvc); 				
-				
+
 				if (is_object($nc)) {
+
+					Loader::model('collection_attributes');
+					$attributes = $ct->getAvailableAttributeKeys();
+					if (is_array($attributes)) {
+						foreach($attributes as $ak) { 
+							$ak->saveAttributeForm($nc);
+						} 
+					}			
+					
+
 					if ($_POST['rel'] == 'SITEMAP') { 
-						if ($cp->canApproveCollection()) {
-							$v = CollectionVersion::get($nc, "RECENT");
-							$v->approve();
-						}
 						$u = new User();
+						if ($cp->canApprovePageVersions() && SITEMAP_APPROVE_IMMEDIATELY) {
+							$pkr = new ApprovePagePageWorkflowRequest();
+							$pkr->setRequestedPage($nc);
+							$v = CollectionVersion::get($nc, "RECENT");
+							$pkr->setRequestedVersionID($v->getVersionID());
+							$pkr->setRequesterUserID($u->getUserID());
+							$response = $pkr->trigger();
+						}
 						$u->unloadCollectionEdit();
 
 						if ($_POST['mode'] == 'explore' ) {
@@ -986,11 +1228,11 @@
 		} else if ($_POST['add_external']) { 
 			// adding a collection to a collection
 			Loader::model('collection_types');
-			if ($cp->canWrite()) {
+			if ($cp->canAddExternalLink()) {
 				$ncID = $c->addCollectionAliasExternal($_POST['cName'], $_POST['cExternalLink'], $_POST['cExternalLinkNewWindow']);						
 				header('Location: ' . URL_SITEMAP);
 				exit;
 			}
 		}
 	}
-?>
+	

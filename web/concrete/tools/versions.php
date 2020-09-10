@@ -1,5 +1,10 @@
-<?
+<?php
 	defined('C5_EXECUTE') or die("Access Denied.");
+
+	if (!Loader::helper('validation/numbers')->integer($_GET['cID'])) {
+		die(t('Access Denied'));
+	}
+
 	$valt = Loader::helper('validation/token');
 	$fh = Loader::helper('file');
 	
@@ -8,85 +13,62 @@
 	$c = Page::getByID($_REQUEST['cID']);
 	$cID = $c->getCollectionID();
 	$cp = new Permissions($c);
+	$u = new User();
 	$isCheckedOut = $c->isCheckedOut() && !$c->isEditMode();
 	
-	if (!$cp->canReadVersions() && !$cp->canApproveCollection()) {
+	if (!$cp->canViewPageVersions() && !$cp->canApprovePageVersions()) {
 		die(t("Access Denied."));
 	}
 	
-	if ($_GET['vtask'] == 'view_version') { ?>
-		<? /*
-		we use the always-updated ID below so that Safari doesn't cache the iframe's contents. We probably shouldn't be
-		making a new iframe on every request to this anyway, but it doesn't happen very often and it represents a significant
-		hurdle to making it a bit of a better citizen, so we'll do it this way for now.
+	if ($_GET['vtask'] == 'view_versions') { ?>
 		
-		*/
-		?>
+		<div class="ccm-ui" style="height: 100%">
 		
-		<iframe border="0" id="v<?=time()?>" frameborder="0" height="100%" width="100%" src="<?=BASE_URL . DIR_REL?>/<?=DISPATCHER_FILENAME?>?cvID=<?=$_REQUEST['cvID']?>&cID=<?=$_REQUEST['cID']?>" />
-	
-	<? 
-		exit;
-	}
-	
-	if (isset($_GET['cvID1']) && isset($_GET['cvID2']) && (isset($_GET['vtask']))) {
-		
-		if ($_GET['vtask'] == 'compare') {
-			session_write_close();
-			
-			// compare
-			$src1 = time() . '_' . $_GET['cID'] . '_' . $_GET['cvID1'] . '.html';
-			$src2 = time() . '_' . $_GET['cID'] . '_' . $_GET['cvID2'] . '.html';
-			
-			ob_start();
-			$c = Page::getByID($_GET['cID'], $_GET['cvID1']);
-			$v = View::getInstance();
-			$v->disableEditing();
-			$v->disableLinks();
-
-			$v->render($c);
-			$ret = ob_get_contents();
-			ob_end_clean();
-
-			file_put_contents($fh->getTemporaryDirectory() . '/' . $src1, $ret);
-			
-			ob_start();
-			$c = Page::getByID($_GET['cID'], $_GET['cvID2']);
-			$v = View::getInstance();
-			$v->disableEditing();
-			$v->disableLinks();
-			$v->render($c);
-			$ret = ob_get_contents();
-			ob_end_clean();
-
-			file_put_contents($fh->getTemporaryDirectory() . '/' . $src2, $ret);
-			
-			if (is_executable(DIR_FILES_BIN_HTMLDIFF)) {
-				$val = system(DIR_FILES_BIN_HTMLDIFF . ' ' . $fh->getTemporaryDirectory() . '/' . $src1 . ' ' . $fh->getTemporaryDirectory() . '/' . $src2);
-				$val = str_replace($val, '</head>', '<style type="text/css">@import "' . ASSETS_URL_CSS . '/ccm.compare.css";</style></head>');
-				print $val;
-			} else {
-				print t('You must make %s executable in order to compare versions of pages.',DIR_FILES_BIN_HTMLDIFF);
+		<?php 
+		$ih = Loader::helper('concrete/interface');
+		$display = 'block';
+		$i = 0;
+		if (count($_REQUEST['cvID']) > 0) {
+			$tabs = array();
+			foreach($_REQUEST['cvID'] as $cvID) {
+				$cvID=Loader::helper('security')->sanitizeInt($cvID);
+				$tabs[] = array('view-version-' . $cvID, t('Version %s', $cvID), ($i == 0));
+				$i++;
 			}
-			exit;
-		
-		} else if ($_GET['vtask'] == 'compare_iframe') { ?>
-		
-			<iframe id="v<?=time()?>" border="0" frameborder="0" height="100%" width="100%" src="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cvID1=<?=$_REQUEST['cvID1']?>&cvID2=<?=$_REQUEST['cvID2']?>&vtask=compare&cID=<?=$_REQUEST['cID']?>" />
+			print $ih->tabs($tabs);			
+		}
+
+
+		foreach($_REQUEST['cvID'] as $cvID) { 
+			$cvID = Loader::helper('security')->sanitizeInt($cvID);
+?>
 			
 		
-		<? }
+		<div id="ccm-tab-content-view-version-<?php echo $cvID?>" style="display: <?php echo $display?>; height: 100%">
+		<iframe border="0" id="v<?php echo time()?>" frameborder="0" height="100%" width="100%" src="<?php echo BASE_URL . DIR_REL?>/<?php echo DISPATCHER_FILENAME?>?cvID=<?php echo $cvID?>&cID=<?php echo $_REQUEST['cID']?>&vtask=view_versions" />
+		</div>
 		
+		<?php if ($display == 'block') {
+			$display = 'none';
+		}
+		
+		
+		}
+		?>
+		</div>
+		
+	
+	<?php 
 		exit;
-		
 	}
+	
 	
 	if (!$isCheckedOut) {
 		
 		if ($valt->validate()) {
 			switch($_REQUEST['vtask']) {
 				case 'remove_group':
-					if ($cp->canApproveCollection() && !$isCheckedOut) {
+					if ($cp->canDeletePageVersions() && !$isCheckedOut) {
 						$cvIDs = explode('_', $_REQUEST['cvIDs']);
 						if (is_array($cvIDs)) {
 							foreach($cvIDs as $cvID) {
@@ -100,80 +82,61 @@
 						}
 					}
 					break;
-				case 'approve':
-					if ($cp->canApproveCollection() && !$isCheckedOut) {
-						$v = CollectionVersion::get($c, $_GET['cvID']);
-						$v->approve();
-						header("Location: " . REL_DIR_FILES_TOOLS_REQUIRED . "/versions.php?forcereload=1&cID=" . $cID . "&cvID=" . $_GET['cvID']);
-						exit;
-					}
+				case 'copy_version':
+					$u = new User();
+					$c->loadVersionObject($_REQUEST['cvID']);
+					$c->cloneVersion(t('Copy of Version: %s', $c->getVersionID()));
+					header("Location: " . REL_DIR_FILES_TOOLS_REQUIRED . "/versions.php?forcereload=1&cID=" . $cID);
+					exit;
 					break;
-				case 'deny':
-					if ($cp->canApproveCollection() && !$isCheckedOut) {
+				case 'approve':
+					if ($cp->canApprovePageVersions() && !$isCheckedOut) {
+						$u = new User();
+						$pkr = new ApprovePagePageWorkflowRequest();
+						$pkr->setRequestedPage($c);
 						$v = CollectionVersion::get($c, $_GET['cvID']);
-						if ($v->isApproved()) {
-							$v->deny();
-							header("Location: " . REL_DIR_FILES_TOOLS_REQUIRED . "/versions.php?forcereload=1&cID=" . $cID . "&cvID=" . $_GET['cvID']);
+						$pkr->setRequestedVersionID($v->getVersionID());
+						$pkr->setRequesterUserID($u->getUserID());
+						$u->unloadCollectionEdit($c);
+						$response = $pkr->trigger();
+						$cvID = Loader::helper('security')->sanitizeInt($_GET['cvID']);
+						if (!($response instanceof WorkflowProgressResponse)) {
+							header("Location: " . REL_DIR_FILES_TOOLS_REQUIRED . "/versions.php?forcereload=1&deferred=true&cID=" . $cID . "&cvID=" . $cvID);
+							exit;
+						} else {
+							// we only get this response if we have skipped workflows and jumped straight in to an approve() step.
+							header("Location: " . REL_DIR_FILES_TOOLS_REQUIRED . "/versions.php?forcereload=1&cID=" . $cID . "&cvID=" . $cvID);
 							exit;
 						}
 					}
 					break;
 			}
 			
-			switch($_GET['ctask']) {
-				case 'approve_pending_action':
-					if ($cp->canApproveCollection() && $cp->canWrite() && !$isCheckedOut) {
-						$approve = false;
-						if ($c->isPendingDelete()) {
-							$children = $c->getNumChildren();
-							if ($children == 0 || $cp->canCP()) {
-								$approve = true;
-								$cParentID = $c->getCollectionParentID();
-							}
-						} else {
-							$approve = true;
-						}
-						if ($approve) {
-							$c->approvePendingAction();
-						}
-						if ($c->isPendingDelete() && $approve) {
-							header("Location: " . REL_DIR_FILES_TOOLS_REQUIRED . "/versions.php?cIsDeleted=1&cParentID={$cParentID}");
-						} else {
-							header("Location: " . REL_DIR_FILES_TOOLS_REQUIRED . "/versions.php?cID=" . $cID);
-						}
-						exit;
-					}
-					break;
-				case 'clear_pending_action':
-					if ($cp->canApproveCollection() && $cp->canWrite() && !$isCheckedOut) {
-						$c->clearPendingAction();
-						header("Location: " . REL_DIR_FILES_TOOLS_REQUIRED . "/versions.php?cID=" . $cID);
-						exit;
-					}
-					break;
-			}
 		}
 		
-		$page = $_REQUEST['ccm_paging_p'];
+		$page = $_REQUEST[PAGING_STRING];
 		if (!$page) {
 			$page = 1;
 		}
-		$vl = new VersionList($c, 20, $page);
+		$vl = new VersionList($c,20, $page);
 		$total = $vl->getVersionListCount();
 		$vArray = $vl->getVersionListArray();
 		$ph = Loader::helper('pagination');
-		$ph->init($page, $total, '', 20, 'ccm_goToVersionPage');
+		$ph->init($page, $total, '',20, 'ccm_goToVersionPage');
 	}
 
 
 
 if (!$_GET['versions_reloaded']) { ?>
 	<div id="ccm-versions-container">
-<? } ?>
+	<?php if ($_REQUEST['deferred']) { ?>
+		<div class="alert alert-info">
+			<?php echo t('<strong>Request Saved.</strong> You must complete the workflow before this change is active.')?>
+		</div>
+	<?php } ?>
+<?php } ?>
 
-<? Loader::element('pane_header', array('c'=>$c, 'close'=>'ccm_exitVersionList')); ?>
-
-<div class="ccm-pane-controls">
+<div class="ccm-pane-controls ccm-ui">
 
 <script type="text/javascript">
 
@@ -182,7 +145,11 @@ var ccm_versionsChecked = 0;
 var ccm_versionsMustReload = false;
 
 $(function() {
-	
+	$('.tooltip').hide();	
+	$('button[name=vCompare]').tooltip();
+	$('button[name=vApprove]').tooltip();
+	$('button[name=vCopy]').tooltip();
+	$('button[name=vRemove]').tooltip();
 	$(".ccm-version").dialog();
 	
 	$("input[type=checkbox]").click(function() {
@@ -196,9 +163,9 @@ $(function() {
 		
 	});
 	
-	<? if ($_REQUEST['forcereload']) { ?>
+	<?php if ($_REQUEST['forcereload']) { ?>
 		ccm_versionsMustReload = true;
-	<? } ?>
+	<?php } ?>
 
 });
 
@@ -212,25 +179,30 @@ ccm_setSelectors = function() {
 	
 	/* if two and only two are checked, we can compare */
 	
-	if (ccm_versionsChecked == 2) {
-		$("input[name=vCompare]").get(0).disabled = false;
+	if (ccm_versionsChecked > 1) {
+		$("button[name=vCompare]").prop('disabled', false);
 	} else {
-		$("input[name=vCompare]").get(0).disabled = true;
+		$("button[name=vCompare]").prop('disabled', true);
 	}
 	
 	
 	if (ccm_versionsChecked > 0 && (!isActiveChecked)) {
-		$("input[name=vRemove]").get(0).disabled = false;
+		$("button[name=vRemove]").prop('disabled', false);
 	} else {
-		$("input[name=vRemove]").get(0).disabled = true;
+		$("button[name=vRemove]").prop('disabled', true);
 	}
 	
 	if (ccm_versionsChecked == 1 && (!isActiveChecked)) {
-		$("input[name=vApprove]").get(0).disabled = false;
+		$("button[name=vApprove]").prop('disabled', false);
 	} else {
-		$("input[name=vApprove]").get(0).disabled = true;
+		$("button[name=vApprove]").prop('disabled', true);
 	}
-	
+
+	if (ccm_versionsChecked == 1) {
+		$("button[name=vCopy]").prop('disabled', false);
+	} else {
+		$("button[name=vCopy]").prop('disabled', true);
+	}
 	
 }
 
@@ -246,7 +218,7 @@ ccm_exitVersionList = function() {
 	if (ccm_versionsMustReload) {
 		window.location.reload();
 	} else {
-		ccm_hidePane();
+		jQuery.fn.dialog.closeTop();
 	}
 }
 
@@ -272,25 +244,38 @@ $("a#ccm-version-select-old").click(function() {
 
 });
 
-$("input[name=vCompare]").click(function() {
+$("button[name=vCompare]").click(function() {
 	
-	var cvID2 = $("input[type=checkbox]:checked").get(0).value;
-	var cvID1 = $("input[type=checkbox]:checked").get(1).value;
-
+	var cvidstr = '';
+	$("table#ccm-versions-list input[type=checkbox]:checked").each(function() {
+		cvidstr += '&cvID[]=' + $(this).val();
+	});
 	$.fn.dialog.open({
 		title: ccmi18n.compareVersions,
-		href: CCM_TOOLS_PATH + '/versions.php?cID=<?=$c->getCollectionID()?>&cvID1=' + cvID1 + '&cvID2=' + cvID2 + '&vtask=compare_iframe',
+		href: CCM_TOOLS_PATH + '/versions.php?cID=<?php echo $c->getCollectionID()?>' + cvidstr + '&vtask=view_versions',
 		width: '85%',
 		modal: false,
 		height: '80%'
 	});
 });
 
-$("input[name=vApprove]").click(function() {
+$("button[name=vApprove]").click(function() {
 	
-	var cvID = $("input[type=checkbox]:checked").get(0).value;
+	var cvID = $("table#ccm-versions-list input[type=checkbox]:checked").get(0).value;
 	jQuery.fn.dialog.showLoader();
-	$("#ccm-versions-container").load(CCM_TOOLS_PATH + '/versions.php?versions_reloaded=1&cID=<?=$c->getCollectionID()?>&cvID=' + cvID + '&vtask=approve<?=$token?>', function() {
+	$.get(CCM_TOOLS_PATH + '/versions.php?versions_reloaded=1&cID=<?php echo $c->getCollectionID()?>&cvID=' + cvID + '&vtask=approve<?php echo $token?>', function(r) {	
+		jQuery.fn.dialog.replaceTop(r);
+		jQuery.fn.dialog.hideLoader();
+	});
+	
+});
+
+$("button[name=vCopy]").click(function() {
+	
+	var cvID = $("table#ccm-versions-list input[type=checkbox]:checked").get(0).value;
+	jQuery.fn.dialog.showLoader();
+	$.get(CCM_TOOLS_PATH + '/versions.php?versions_reloaded=1&cID=<?php echo $c->getCollectionID()?>&cvID=' + cvID + '&vtask=copy_version<?php echo $token?>', function(r) {	
+		jQuery.fn.dialog.replaceTop(r);
 		jQuery.fn.dialog.hideLoader();
 	});
 	
@@ -298,18 +283,20 @@ $("input[name=vApprove]").click(function() {
 
 ccm_goToVersionPage = function(p, url) {
 	jQuery.fn.dialog.showLoader();
-	var dest = CCM_TOOLS_PATH + '/versions.php?versions_reloaded=1&cID=<?=$c->getCollectionID()?>&ccm_paging_p=' + p;
-	$("#ccm-versions-container").load(dest, function() {
+	var dest = CCM_TOOLS_PATH + '/versions.php?versions_reloaded=1&cID=<?php echo $c->getCollectionID()?>&<?php echo PAGING_STRING?>' + p;
+	$.get(dest, function(r) {
+		jQuery.fn.dialog.replaceTop(r);
 		jQuery.fn.dialog.hideLoader();
 	});
 	return false;
 }
 
-$("input[name=vRemove]").click(function() {
+
+$("button[name=vRemove]").click(function() {
 
 	jQuery.fn.dialog.showLoader();
 	
-	var cvIDs = $("input[type=checkbox]:checked");
+	var cvIDs = $("table#ccm-versions-list input[type=checkbox]:checked");
 	var cvIDStr = '';
 	for (i = 0; i < cvIDs.length; i++) {
 		cvIDStr += "_";
@@ -323,55 +310,66 @@ $("input[name=vRemove]").click(function() {
 	//ccm_showTopbarLoader();
 	var params = {
 		'vtask': 'remove_group',
-		'ccm_token': '<?=$valt->generate()?>',
-		'cID': <?=$c->getCollectionID()?>,
+		'ccm_token': '<?php echo $valt->generate()?>',
+		'cID': <?php echo $c->getCollectionID()?>,
 		'cvIDs': cvIDStr
 	}
 	
-	$("#ccm-versions-container").load(CCM_TOOLS_PATH + '/versions.php?versions_reloaded=1', params, function() {
+	$.get(CCM_TOOLS_PATH + '/versions.php?versions_reloaded=1', params, function(r) {
+		jQuery.fn.dialog.replaceTop(r);
 		jQuery.fn.dialog.hideLoader();
 	});
 	
 });
 
 
+
+
 </script>
-<div class="ccm-pane-controls">
-<div id="ccm-edit-collection">
 
-<h1><?=t('Page Versions')?></h1>
-<p><?=t("The following is a list of all this page's versions. If you can edit a page you will automatically see its most recent version, but the approved version is what regular users will see.")?></p>
+<div class="dialog-help"><?php echo t("Here are earlier versions of this page. The bold line is the live version.<br/><br/>Anyone who can't edit this page sees this active version if permissions allow. Your edits are always made to the latest version. If you'd like to start editing from an old version, copy that version.")?></div>
 
-<div class="ccm-form-area">
+<br/>
 
 
-	<? if ($isCheckedOut) { ?> 
-		<?=t('Someone has already checked out this page for editing.')?>
-	<? } else { ?>
-	
-	
-	<form>
-	<?=t('Select')?>: <a id="ccm-version-select-none" href="#"><?=t('None')?></a> | <a id="ccm-version-select-old" href="#"><?=t('Old Versions')?></a>
-	&nbsp;&nbsp;
-	<input type="button" name="vCompare" value="<?=t('Compare')?>" disabled />
-	&nbsp;
-	<input type="button" name="vApprove" value="<?=t('Approve')?>" disabled />
-	
-	&nbsp;
-	<input type="button" name="vRemove" value="<?=t('Remove')?>" disabled />
-	
-	</form>
-	<br/>
-	<table border="0" cellspacing="0" width="100%" class="ccm-grid" cellpadding="0">
+
+	<?php if ($isCheckedOut) { ?> 
+		<?php echo t('Someone has already checked out this page for editing.')?>
+	<?php } else { ?>
+
+	<table border="0" cellspacing="0" width="100%" class="table table-striped" cellpadding="0" id="ccm-versions-list">
 	<tr>
-		<th>&nbsp;</th>
-		<th><?=t('Name')?></th>
-		<th><?=t('Comments')?></th>
-		<th><?=t('Creator')?></th>
-		<th><?=t('Approver')?></th>
-		<th><?=t('Added On')?></th>
+		<th><div class="btn-group" style="margin-left: auto; margin-right: auto">
+		<a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+		<span class="caret"></span>
+  		</a>
+		<ul class="dropdown-menu">
+		<li><a id="ccm-version-select-none" href="#"><?php echo t('None')?></a></li>
+		<li><a id="ccm-version-select-old" href="#"><?php echo t('Old Versions')?></a></li>
+		</ul>
+	</div>
+	</th>
+		<th style="vertical-align: middle"><?php echo t('ID')?></th>
+		<th style="vertical-align: middle"><?php echo t('Comments')?></th>
+		<th style="vertical-align: middle"><?php echo t('Creator')?></th>
+		<th style="vertical-align: middle"><?php echo t('Approver')?></th>
+		<th style="vertical-align: middle"><?php echo t('Created')?></th>
+		<th style="white-space: nowrap; width: 145px;">
+	<div class="btn-group" style="float: right; white-space: nowrap">
+	<?php
+	$ih = Loader::helper("concrete/dashboard");
+	if (!$ih->inDashboard($c)) { ?><button class="btn" name="vCompare" title="<?php echo t('Compare')?>" disabled><i class="icon-zoom-in"></i></button><?php } ?>
+	<button class="btn" name="vApprove" title="<?php echo t('Approve')?>" disabled><i class="icon-thumbs-up"></i></button>
+	<button class="btn" name="vCopy" value="<?php echo t('Copy')?>" title="<?php echo t('Copy Version')?>" disabled><i class="icon-plus-sign"></i></button>
+	<?php if ($cp->canDeletePageVersions()) { ?>
+		<button class="btn" name="vRemove" value="<?php echo t('Remove')?>" disabled><i class="icon-trash"></i></button>
+	<?php } ?>
+	</div>
+		</th>
 	</tr>
-	<? 
+	<?php 
+	$dh = Loader::helper('date');
+	/* @var $dh DateHelper */
 	$vIsPending = true;
 	foreach ($vArray as $v) { 
 		if ($v->isApproved()) {
@@ -393,113 +391,41 @@ $("input[name=vRemove]").click(function() {
 		}
 		
 	?> 
-	<tr id="ccm-version-row<?=$v->getVersionID()?>" class="<?=$class?>">
-		<td><input type="checkbox" <? if ($vIsPending) { ?> class="cb-version-pending"<? } else if ($v->isApproved()) { ?> class="cb-version-active"<? } else { ?> class="cb-version-old" <? } ?> id="cb<?=$v->getVersionID()?>" name="vID[]" value="<?=$v->getVersionID()?>" /></td>
-		<td><a dialog-width="85%" dialog-height="80%" title="<?=t('Compare Versions')?>" class="ccm-version" dialog-modal="false" href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?=$cID?>&cvID=<?=$v->getVersionID()?>&vtask=view_version"><?=$v->getVersionName()?></a></td>
-		<td><?=$v->getVersionComments()?></td>
-		<td><?
+	<tr id="ccm-version-row<?php echo $v->getVersionID()?>" class="<?php echo $class?>">
+		<td style="text-align: center"><input type="checkbox" <?php if ($vIsPending) { ?> class="cb-version-pending"<?php } else if ($v->isApproved()) { ?> class="cb-version-active"<?php } else { ?> class="cb-version-old" <?php } ?> id="cb<?php echo $v->getVersionID()?>" name="vID[]" value="<?php echo $v->getVersionID()?>" /></td>
+		<td><?php echo $v->getVersionID()?></td>
+		<td><a dialog-width="85%" dialog-height="80%" title="<?php echo t('View Versions')?>" class="ccm-version" dialog-title="<?php echo t('View Versions')?>" dialog-modal="false" href="<?php echo REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?php echo $cID?>&cvID[]=<?php echo $v->getVersionID()?>&vtask=view_versions"><?php echo $v->getVersionComments()?></a></td>
+		<td><?php
 			print $v->getVersionAuthorUserName();
 			
 			?></td>
-		<td><?
+		<td><?php
 			print $v->getVersionApproverUserName();
 			
 			?></td>
-		<td><?=date(DATE_APP_PAGE_VERSIONS, strtotime($v->getVersionDateCreated('user')))?></td>
+		<td colspan="2"><?php echo $dh->formatSpecial('PAGE_VERSIONS', $v->getVersionDateCreated())?></td>
 	</tr>	
-	<? } ?>
+	<?php } ?>
 	</table>
-	<? if ($total > 20 ) { ?>
-		<div class="ccm-pagination" style="margin-top: 8px">
-			<span class="ccm-page-left"><?=$ph->getPrevious()?></span>
-			<span class="ccm-page-right"><?=$ph->getNext()?></span>
-			<?=$ph->getPages()?>
+	<?php if ($total > 20 ) { ?>
+	<div class="ccm-ui">
+		<div class="pagination ccm-pagination">
+		<ul>
+			<li class="prev"><?php echo $ph->getPrevious()?></li>
+			<?php echo $ph->getPages('li'); ?>
+			<li class="next"><?php echo $ph->getNext()?></li>
+		</ul>
 		</div>
-	<? } ?>
+	</div>
+	<?php } ?>
 	<br>
 	
-	<h2><?=t('Pending Actions')?></h2>
-	
-	<? 
-
-	$pendingAction = $c->getPendingAction();
-	switch($pendingAction) {
-		case 'DELETE': 
-			$ud = UserInfo::getByID($c->getPendingActionUserID());
-			$children = $c->getNumChildren();
-			$pages = $children + 1;
-			?>
-
-			<div>
-				<strong class="important"><?=t('DELETION')?></strong>
-				<?=t('(Marked by: <strong>%s</strong> on <strong>%s</strong>)',$ud->getUserName(), date(DATE_APP_PAGE_VERSIONS, strtotime($c->getPendingActionDateTime())))?>
-			</div>
-
-			<? if ($cp->canApproveCollection()) { ?>
-				<? if ($children == 0) { ?>
-				
-					<div class="ccm-buttons">
-					<a href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?=$cID?>&ctask=approve_pending_action<?=$token?>" class="ccm-button-right accept" onclick="return ccm_runAction(this)"><span><?=t('Approve')?></span></a>
-					<a href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?=$cID?>&ctask=clear_pending_action<?=$token?>" class="ccm-button-left cancel" onclick="return ccm_runAction(this)"><span><em class="ccm-button-close"><?=t('Deny')?></em></span></a>
-					</div>
-			
-				<? } else if ($children > 0) { ?>
-					<?=t('This will remove %s pages.',$pages)?>
-					<? if (!$cp->canAdminPage()) { ?>
-						<?=t('Only the super user may remove multiple pages.')?><br>
-						<div class="ccm-buttons">
-						<a href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?=$cID?>&ctask=clear_pending_action<?=$token?>" class="ccm-button-left cancel" onclick="return ccm_runAction(this)"><span><em class="ccm-button-close"><?=t('Deny')?></em></span></a>
-						</div>
-
-					<? } else { ?>
-						<div class="ccm-buttons">
-						<a href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?=$cID?>&ctask=approve_pending_action<?=$token?>" class="ccm-button-right accept" onclick="return ccm_runAction(this)"><span><?=t('Approve')?></span></a>
-						<a href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?=$cID?>&ctask=clear_pending_action<?=$token?>" class="ccm-button-left cancel" onclick="return ccm_runAction(this)"><span><em class="ccm-button-close"><?=t('Deny')?></em></span></a>
-						</div>
-
-					<? } ?>
-				<? } ?>
-			<? } ?>
-
-		<? break;
-		case 'MOVE':
-			$ud = UserInfo::getByID($c->getPendingActionUserID());
-			?>
-
-			<div>
-				<strong class="important"><?=t('MOVE')?></strong>  
-				<?=t('(Marked by: <strong>%s</strong> on <strong>%s</strong>)',$ud->getUserName(), date(DATE_APP_PAGE_VERSIONS, strtotime($c->getPendingActionDateTime()) ))?>
-			</div>
-			<? $nc = Page::getByID($c->getPendingActionTargetCollectionID(), 'ACTIVE'); ?>
-				<? if (is_object($nc)) { ?>
-					<br><?=t('This page is being moved to')?> <strong><a href="<?=DIR_REL?>/<?=DISPATCHER_FILENAME?>?cID=<?=$nc->getCollectionID()?>" target="_blank"><?=$nc->getCollectionName()?></a></strong>
-				<? } 
-			?>
-			<? if ($cp->canApproveCollection()) { ?>
-				<div class="ccm-buttons">
-				<a href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?=$cID?>&ctask=approve_pending_action<?=$token?>" class="ccm-button-right accept" onclick="return ccm_runAction(this)"><span><?=t('Approve')?></span></a>
-				<a href="<?=REL_DIR_FILES_TOOLS_REQUIRED?>/versions.php?cID=<?=$cID?>&ctask=clear_pending_action<?=$token?>" class="ccm-button-left cancel" onclick="return ccm_runAction(this)"><span><em class="ccm-button-close"><?=t('Deny')?></em></span></a>
-				</div>
-			<? } ?>
-		<? break;
-		default: ?>
-			
-			<?=t('There are no pending actions for this page.')?>
-			
-		<? break;
-		
-		}
-	
-		}
+<?php 	}
 
 ?>
-</div>
-
-<div class="ccm-spacer">&nbsp;</div>
 
 </div>
-</div>
 
-<? if (!$_GET['versions_reloaded']) { ?>
+<?php if (!$_GET['versions_reloaded']) { ?>
 </div>
-<? } ?>
+<?php } ?>

@@ -1,36 +1,43 @@
-<? defined('C5_EXECUTE') or die("Access Denied."); ?>
-<h1><span><?=t('Drafts')?></h1>
-<div class="ccm-dashboard-inner">
-<? 
-$today = Loader::helper('date')->getLocalDateTime('now', 'Y-m-d');
+<?php defined('C5_EXECUTE') or die("Access Denied."); ?>
+
+<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('Composer Drafts'))?>
+
+<?php
+$dh = Loader::helper('date');
+/* @var $dh DateHelper */
+
+$today = $dh->getLocalDateTime('now', 'Y-m-d');
 if (count($drafts) > 0) { ?>
 
-<table class="ccm-results-list">
+<table class="table table-striped">
 <tr>
-	<th width="60%"><?=t('Page Name')?></th>
-	<th width="20%"><?=t('Page Type')?></th>
-	<th width="20%"><?=t('Last Modified')?></th>
+	<th width="60%"><?php echo t('Page Name')?></th>
+	<th width="20%"><?php echo t('Page Type')?></th>
+	<th width="20%"><?php echo t('Last Modified')?></th>
 </tr>
-<? foreach($drafts as $dr) { ?>
+<?php foreach($drafts as $dr) { ?>
 <tr>
-	<td><a href="<?=$this->url('/dashboard/composer/write', 'edit', $dr->getCollectionID())?>"><? if (!$dr->getCollectionName()) {
+	<td><a href="<?php echo $this->url('/dashboard/composer/write', 'edit', $dr->getCollectionID())?>"><?php if (!$dr->getCollectionName()) {
 		print t('(Untitled Page)');
 	} else {
 		print $dr->getCollectionName();
 	} ?></a></td>
-	<td><?=$dr->getCollectionTypeName()?></td>
-	<td><?
-		$mask = 'F jS Y - g:i a';
+	<td><?php echo $dr->getCollectionTypeName()?></td>
+	<td><?php
 		if ($today == $dr->getCollectionDateLastModified("Y-m-d")) {
-			$mask = 'g:i a';
+			print $dh->formatTime($dr->getCollectionDateLastModified(), false);
 		}
-		print $dr->getCollectionDateLastModified($mask)?></td>
-<? } ?>
+		else {
+			print $dh->formatDateTime($dr->getCollectionDateLastModified(), false, false);
+		}
+	?></td>
+<?php } ?>
 </table>
 
-<? } else { ?>
+<?php } else { ?>
 	
-	<p><?=t('You have not created any drafts. <a href="%s">Visit Composer &gt;</a>', $this->url('/dashboard/composer/write'))?></p>
+	<p><?php echo t('You have not created any drafts. <a href="%s">Visit Composer &gt;</a>', $this->url('/dashboard/composer/write'))?></p>
 
-<? } ?>
-</div>
+<?php } ?>
+
+<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper();?>

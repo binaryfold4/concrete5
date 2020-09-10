@@ -1,198 +1,254 @@
-<? defined('C5_EXECUTE') or die("Access Denied."); ?>
-<script>
-<? 
-
-$toggleQuestionsShowText = t('View all fields').' &raquo;'; 
-$toggleQuestionsHideText = t('Hide fields') . ' &raquo;'; 
-
+<?php defined('C5_EXECUTE') or die("Access Denied.");
+/* @var $h ConcreteDashboardHelper */
+$h = Loader::helper('concrete/dashboard');
+/* @var $ih ConcreteInterfaceHelper */
+$ih = Loader::helper('concrete/interface');
+/* @var $nh NavigationHelper */
+$nh = Loader::helper('navigation');
+/* @var $text TextHelper */
+$text = Loader::helper('text');
+/* @var $dh DateHelper*/
+$dh = Loader::helper('date');
+/* @var $urlhelper UrlHelper */
+$urlhelper = Loader::helper('url');
+/* @var $json JsonHelper */
+$json = Loader::helper('json');
+/* @var $valt ValidationTokenHelper */
+$valt = Loader::helper('validation/token');
+/* @var $db DataBase */
+$db = Loader::db();
 ?>
-var toggleQuestionsShowText='<?=$toggleQuestionsShowText?>';
-var toggleQuestionsHideText='<?=$toggleQuestionsHideText?>';
-function toggleQuestions(qsID,trigger){
-	$('.extraQuestionRow'+qsID).toggleClass('noDisplay');
-	if(trigger.state=='open') {
-		 trigger.innerHTML = toggleQuestionsShowText;
-		 trigger.state='closed';
-	}else{
-		trigger.state='open';
-		trigger.innerHTML = toggleQuestionsHideText;
+<script>
+jQuery(function($) {
+	var deleteResponse = (<?php echo $json->encode(t('Are you sure you want to delete this form submission?'))?>),
+		deleteForm = (<?php echo $json->encode(t('Are you sure you want to delete this form and its form submissions?'))?>),
+		deleteFormAnswers = (<?php echo $json->encode(t('Are you sure you want to delete this form submissions?'))?>);
+	$('.delete-response').live('click', function(e) {
+		if (!confirm(deleteResponse)) {
+			e.preventDefault();
+		}
+	});
+	$('.delete-form').live('click', function(e) {
+		if (!confirm(deleteForm)) {
+			e.preventDefault();
+		}
+	});
+	$('.delete-form-answers').live('click', function(e) {
+		if (!confirm(deleteFormAnswers)) {
+			e.preventDefault();
+		}
+	});
+});
+</script>
+<style>
+::-webkit-scrollbar {
+	-webkit-appearance: none;
+	width: 7px;
+	height: 6px;
+}
+::-webkit-scrollbar-thumb {
+	border-radius: 4px;
+	background-color: rgba(0,0,0,.5);
+	-webkit-box-shadow: 0 0 1px rgba(255,255,255,.5);
+}
+
+#wide-content-notification {
+	margin-left: 5px;
+	display: none;
+	color: #aaa;
+}
+
+.form-results-container {
+	width: 100%;
+	overflow: auto;
+}
+
+</style>
+<?php
+if (!isset($questionSet)) {
+	echo $h->getDashboardPaneHeaderWrapper(t('Form Results'));
+	$showTable = false;
+	foreach ($surveys as $qsid => $survey) {
+		$block = Block::getByID((int) $survey['bID']);
+		if (is_object($block)) {
+			$showTable = true;
+			break;
+		}
 	}
-}
-//SET UP FORM RESPONSE CONFIRM DELETE
-function deleteResponse(dLink){
-	return confirm("<?=t('Are you sure you want to delete this form submission?')?>");
-}
-//SET UP FORM CONFIRM DELETE
-function deleteForm(dLink){
-	return confirm("<?=t('Are you sure you want to delete this form and its form submissions?')?>");
-}
-</script> 
-
-<h1><span><?=t('Form Results')?></span></h1>
-
-<div class="ccm-dashboard-inner">
-
-<? if (count($surveys) == 0) { ?>
-<?=t('You have not created any forms.')?>
-<? } else { ?>
-
-<div style="margin:0px; padding:0px; width:100%; height:auto" >
-
-<table class="entry-form" >
-	<tr>
-		<td class="header"><?php echo t('Form')?></td>
-		<!--our counter insterted-->
-		<td class="header"><?php echo t('Submissions')?></td>
-		<td class="header"><?php echo t('Options')?></td>		
-	</tr>
-	<? 
-	$db = Loader::db();
-	foreach($surveys as $thisQuestionSetId=>$survey){
-		$b=Block::getByID( intval($survey['bID']) );
-		
-		//get count of number of times this block is used
-		$db = Loader::db();
-		$q = "select count(*) from CollectionVersionBlocks inner join Pages on (CollectionVersionBlocks.cID = Pages.cID) inner join CollectionVersions on (CollectionVersions.cID = Pages.cID) where CollectionVersions.cvIsApproved=1 AND CollectionVersionBlocks.cvID=CollectionVersions.cvID AND CollectionVersionBlocks.bID = '{$b->bID}'";
-		$blockActiveOnNumPages = $db->getOne($q);
-		
-		if (is_object($b)) {
-			$oc = $b->getBlockCollectionObject();
-			$ocID = $oc->getCollectionID();		
-			?>
-			<tr>
-				<td><?php echo $survey['surveyName']?></td>
-				<td><?php echo $survey['answerSetCount']?></td>
-				<td>
-					<a href="<?php echo DIR_REL?>/<?=DISPATCHER_FILENAME?>?cID=<?php echo $c->getCollectionId()?>&qsid=<?php echo $thisQuestionSetId?>"><?php echo t('View Responses')?></a>
-					|
-					<a href="<?php echo DIR_REL?>/<?=DISPATCHER_FILENAME?>?cID=<?php echo $ocID?>"><?php echo t('Open Page')?></a>	
-					<? if(!intval($blockActiveOnNumPages)){ ?>
-					| 
-					<a onclick="return deleteForm()" href="<?php echo DIR_REL?>/<?=DISPATCHER_FILENAME?>?cID=<?php echo $c->getCollectionId()?>&bID=<?php echo $survey['bID']?>&qsID=<?php echo $thisQuestionSetId?>&action=deleteForm"><?php echo t('Delete Unused Form')?></a>
-					<? } ?>
-				</td>				
-			</tr>
-		<? }
-		
-	}?>
-</table>
-</div>
-
-<? } ?>
-
-</div>
-
-
-
-<? if( strlen($questionSet)>0 ){ ?>
-
-	<a name="responses" id="responses"></a>	
-	<h1><span><?=t('Responses to')?> "<?=$surveys[$questionSet]['surveyName']?>"</span></h1>
-	<div class="ccm-dashboard-inner">
-	
-	<? if( count($answerSets)==0 ){ ?>
-		<div><?=t('No one has yet submitted this form.')?></div>
-	<? }else{ ?>
-	
-		<div style="margin-bottom:8px">
-			<div style="float:right; margin-bottom:8px">
-			<a href="<?=$this->url('/dashboard/reports/forms/', 'excel', '?qsid=' . $questionSet)?>"><?=t('Export to Excel')?> &raquo;</a>
-			</div>
-			
-			<? if($_REQUEST['all']!=1){ ?>
-				<a href="<?=$this->url('/dashboard/reports/forms/', 'view', '?all=1&sortBy='.$_REQUEST['sortBy'].'&qsid='.$questionSet)?>"><?=t('Show All')?></a>
-			<? }else{ ?>
-				<a href="<?=$this->url('/dashboard/reports/forms/', 'view', '?all=0&sortBy='.$_REQUEST['sortBy'].'&qsid='.$questionSet)?>"><?=t('Show Paging')?></a>
-			<? } ?>
-			
-			&nbsp;|&nbsp;
-			 
-			<? if($_REQUEST['sortBy']=='chrono'){ ?>
-				<a href="<?=$this->url('/dashboard/reports/forms/', 'view', '?all=1&sortBy=newest&qsid='.$questionSet)?>"><?=t('Sort by Newest')?></a>
-			<? }else{ ?>
-				<a href="<?=$this->url('/dashboard/reports/forms/', 'view', '?all=0&sortBy=chrono&qsid='.$questionSet)?>"><?=t('Sort Chronologically')?></a>
-			<? } ?>			
-			<div class="spacer"></div>
-		</div>
-	
-		<? 
-		$dh = Loader::helper('date');
-		foreach($answerSets as $answerSetId=>$answerSet){ ?>
-			
-			<div style="margin:0px; padding:0px; width:100%; height:auto" >
-			<table class="entry-form" width="100%" style="margin-bottom:2px">
+	if ($showTable) {
+		?><table class="table table-striped">
+			<thead>
 				<tr>
-					<td class="header"><?=t('Submitted Date')?></td>
-					<td class="header"><?=$dh->getSystemDateTime($answerSet['created'])?></td>
+					<th><?php echo t('Form')?></th>
+					<th><?php echo t('Submissions')?></th>
+					<th><?php echo t('Options')?></th>
 				</tr>
-				<? if ($answerSet['uID'] > 0) { ?>
-				<tr>
-					<td class="subheader"><?=t('Submitted By User')?></td>
-					<td class="subheader"><? 
-						$ui = UserInfo::getByID($answerSet['uID']);
-						if (is_object($ui)) {
-							print $ui->getUserName();
-						}
-						print ' ' . t('(User ID: %s)', $answerSet['uID']);
-					} ?></td>
-				</tr>				<? 
-				$questionNumber=0;
-				$numQuestionsToShow=2;
-				foreach($questions as $questionId=>$question){ 
-				
-					//if this row doesn't have an answer, don't show it.
-					if(!strlen(trim($answerSet['answers'][$questionId]['answerLong'])) && 
-					   !strlen(trim($answerSet['answers'][$questionId]['answer'])))
-					   		continue;
-					   
-					$questionNumber++; 
-					?>
-					<tr class="<?=($questionNumber>$numQuestionsToShow)?'extra':''?>QuestionRow<?=$answerSetId?> <?=($questionNumber>$numQuestionsToShow)?'noDisplay':'' ?>">
-						<td width="33%">
-							<?= $questions[$questionId]['question'] ?>
-						</td>
+			</thead>
+			<tbody><?php
+				foreach ($surveys as $qsid => $survey) {
+					$block = Block::getByID((int) $survey['bID']);
+					if (!is_object($block)) {
+						continue;
+					}
+					$in_use = (int) $db->getOne(
+						'
+							SELECT
+								count(*)
+							FROM
+								CollectionVersionBlocks
+								INNER JOIN Pages ON CollectionVersionBlocks.cID = Pages.cID
+								INNER JOIN CollectionVersions ON CollectionVersions.cID = Pages.cID
+							WHERE
+								CollectionVersions.cvIsApproved = 1
+								AND CollectionVersionBlocks.cvID = CollectionVersions.cvID
+								AND CollectionVersionBlocks.bID = ?
+						',
+						array($block->bID)
+					);
+					$url = $nh->getLinkToCollection($block->getBlockCollectionObject());
+					?><tr>
+						<td><?php echo h($survey['surveyName'])?></td>
+						<td><?php echo h($survey['answerSetCount'])?></td>
 						<td>
-							<?
-							if( $question['inputType']=='fileupload' ){
-								$fID=intval($answerSet['answers'][$questionId]['answer']);
-								$file=File::getByID($fID);
-								if($fID && $file){
-									$fileVersion=$file->getApprovedVersion();
-									echo '<a href="' . $fileVersion->getRelativePath() .'">'.$fileVersion->getFileName().'</a>';
-								}else{
-									echo t('File not found');
-								}
-							}elseif($question['inputType']=='text'){
-								echo $answerSet['answers'][$questionId]['answerLong'];
-							}else{
-								echo $answerSet['answers'][$questionId]['answer'];
+							<?php echo $ih->button(t('View Responses'), DIR_REL . '/index.php?cID=' . $c->getCollectionID().'&qsid=' . $qsid, 'left', 'small')?>
+							<?php echo $ih->button(t('Open Page'), $url, 'left', 'small')?>
+							<form method="post" action="" style="display: inline">
+								<input type="hidden" name="qsID" value="<?php echo intval($qsid) ?>" />
+								<input type="hidden" name="action" value="deleteFormAnswers" />
+								<?php $valt->output('deleteFormAnswers') ?>
+								<?php echo $ih->submit(t('Delete Submissions'), false, 'left', 'small error delete-form-answers') ?>
+							</form>
+							<?php
+							if (!$in_use) {
+								?><form method="post" action="" style="display: inline">
+									<input type="hidden" name="bID" value="<?php echo intval($survey['bID']) ?>" />
+									<input type="hidden" name="qsID" value="<?php echo intval($qsid) ?>" />
+									<input type="hidden" name="action" value="deleteForm" />
+									<?php $valt->output('deleteForm') ?>
+									<?php echo $ih->submit(t('Delete'), false, 'left', 'small error delete-form') ?>
+								</form><?php
 							}
-							?>							
+							?>
 						</td>
-					</tr>
-				<? } ?>
-			</table>
+					</tr><?php
+				}
+			?></tbody>
+		</table><?php
+	}
+	else {
+		?><p><?php echo t('There are no available forms in your site.')?></p><?php
+	}
+	echo $h->getDashboardPaneFooterWrapper();
+}
+else {
+	echo $h->getDashboardPaneHeaderWrapper(t('Responses to %s', $surveys[$questionSet]['surveyName']), false, false, false);
+	if (count($answerSets) == 0) {
+		?>
+		<div class="ccm-pane-body ccm-pane-body-footer">
+			<div><?php echo t('No one has yet submitted this form.')?></div>
+		</div>
+		<?php
+	}
+	else {
+		$showPaginator = $paginator && (strlen($paginator->getPages()) > 0);
+		?>
+		<div class="ccm-pane-body <?php if (!$showPaginator) { ?> ccm-pane-body-footer <?php } ?>">
+			<div class="ccm-list-action-row">
+				<a id="ccm-export-results" href="<?php echo $this->action('excel', '?qsid=' . $questionSet)?>"><span></span><?php echo t('Export to Excel')?></a>
 			</div>
-			
-			<div style="text-align:right; margin-bottom:16px">
-			<a onclick="return deleteResponse()" href="<?php echo DIR_REL?>/<?=DISPATCHER_FILENAME?>?cID=<?php echo $c->getCollectionId()?>&qsid=<?php echo $answerSet['questionSetId']?>&asid=<?php echo $answerSet['asID']?>&action=deleteResponse"><?=t("Delete Response")?></a>
-			&nbsp;|&nbsp;
-			<?php  if( count($questions)>$numQuestionsToShow ){ ?>
-				<a onclick="toggleQuestions(<?php echo $answerSetId?>,this)"><?php echo $toggleQuestionsShowText?></a>
-			<?php  } ?>
-			</div>	
-		<?php  } ?>
-		
-	<? } ?> 	
-
-	<? if($paginator && strlen($paginator->getPages())>0){ ?>	 
-		 <div  class="pagination">
-			 <div class="pageLeft"><?=$paginator->getPrevious()?></div>
-			 <div class="pageRight"><?=$paginator->getNext()?></div>
-			 <?=$paginator->getPages()?>
-		 </div>		
-	<? } ?>		
-	
-	</div>
-
-<? } ?>
+			<div class="form-results-container">
+				<script>
+				$(document).ready(function(){
+					if ($('.form-results-container')[0].scrollWidth > $('.ccm-pane-body').width()) {
+						$('#wide-content-notification').show();
+					}
+				});
+				</script>
+				<p id="wide-content-notification"><?php echo t('* Scroll right to view full results'); ?></p>
+				<table class="table table-striped">
+					<thead>
+						<tr>
+							<?php
+							if ($_REQUEST['sortBy'] == 'chrono') {
+								?><th class="header headerSortDown"><a href="<?php echo h($urlhelper->unsetVariable('sortBy'))?>"><?php
+							}
+							else {
+								?><th class="header headerSortUp"><a href="<?php echo h($urlhelper->setVariable('sortBy', 'chrono'))?>"><?php
+							}
+							?><?php echo t('Date')?></a></th>
+							<th><?php echo t('User')?></th>
+							<?php
+							foreach ($questions as $question) {
+								?><th><?php echo $question['question']?></th><?php
+							}
+							?>
+							<th><?php echo t('Actions')?></th>
+						</tr>
+					</thead>
+					<tbody><?php
+						foreach ($answerSets as $answerSetId => $answerSet) {
+							?><tr>
+								<td><?php echo $dh->getSystemDateTime($answerSet['created'])?></td>
+								<td><?php
+									if ($answerSet['uID'] > 0) {
+										$ui = UserInfo::getByID($answerSet['uID']);
+										if (is_object($ui)) {
+											print $ui->getUserName() . ' ';
+										}
+										print t('(User ID: %s)', $answerSet['uID']);
+									}
+								?></td>
+								<?php
+								foreach($questions as $questionId => $question) {
+									switch($question['inputType']) {
+										case 'fileupload':
+											$fID = (int) $answerSet['answers'][$questionId]['answer'];
+											$file = File::getByID($fID);
+											if ($fID && $file) {
+												$fileVersion = $file->getApprovedVersion();
+												echo '<td><a href="' . $fileVersion->getRelativePath() . '">' . h($fileVersion->getFileName()) . '</a></td>';
+											}
+											else {
+												echo '<td>' . t('File not found') . '</td>';
+											}
+											break;
+										case 'text':
+											echo '<td>' . h($answerSet['answers'][$questionId]['answerLong']) . '</td>';
+											break;
+										default:
+											echo '<td>' . h($answerSet['answers'][$questionId]['answer']) . '</td>';
+											break;
+									}
+								}
+								?>
+								<td><form method="post" action="" style="display: inline">
+										<input type="hidden" name="qsid" value="<?php echo intval($answerSet['questionSetId']) ?>" />
+										<input type="hidden" name="asid" value="<?php echo intval($answerSet['asID']) ?>" />
+										<input type="hidden" name="action" value="deleteResponse" />
+										<?php $valt->output('deleteResponse') ?>
+										<?php echo $ih->submit(t('Delete'), false, 'left', 'danger delete-response small') ?>
+								</form></td>
+							</tr><?php
+						}
+					?></tbody>
+				</table>
+			</div>
+		</div>
+		<?php
+		if ($showPaginator) {
+			?><div class="ccm-pane-footer">
+				<div class="pagination">
+					<ul>
+						<li class="prev"><?php echo $paginator->getPrevious()?></li>
+						<?php
+						// Call to pagination helper's 'getPages' method with new $wrapper var
+						echo $paginator->getPages('li');
+						?>
+						<li class="next"><?php echo $paginator->getNext()?></li>
+					</ul>
+				</div>
+			</div><?php
+		}
+	}
+	echo $h->getDashboardPaneFooterWrapper(false);
+}

@@ -7,12 +7,14 @@ MiniSurvey::questionCleanup( intval($miniSurveyInfo['questionSetId']), $b->getBl
 
 $u=new User();
 $ui=UserInfo::getByID($u->uID);
-if( strlen(trim($miniSurveyInfo['recipientEmail']))==0 )
-	$miniSurveyInfo['recipientEmail']=$ui->uEmail;
 ?>
 
 <script>
-var thisbID=parseInt(<?php echo $b->getBlockID()?>); 
+<?php if (is_object($b->getProxyBlock())) { ?>
+	var thisbID=parseInt(<?php echo $b->getProxyBlock()->getBlockID()?>); 
+<?php } else { ?>
+	var thisbID=parseInt(<?php echo $b->getBlockID()?>); 
+<?php } ?>
 var thisbtID=parseInt(<?php echo $b->getBlockTypeID()?>); 
 </script>
 

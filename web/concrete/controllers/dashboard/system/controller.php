@@ -1,10 +1,6 @@
-<?
+<?php
 
 defined('C5_EXECUTE') or die("Access Denied.");
-class DashboardSystemController extends Controller { 	 
-	
-	function view() {  
-		$this->redirect('/dashboard/system/jobs');
-	}
-	
+class DashboardSystemController extends Concrete5_Controller_Dashboard_System {
+
 }

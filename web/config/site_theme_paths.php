@@ -1,4 +1,4 @@
-<?php 
+<?php   
 
 defined('C5_EXECUTE') or die("Access Denied.");
 
@@ -13,7 +13,6 @@ defined('C5_EXECUTE') or die("Access Denied.");
 */
 
 /*
-
 $v = View::getInstance();
 
 $v->setThemeByPath('/login', "yourtheme");

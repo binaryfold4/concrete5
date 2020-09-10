@@ -4,13 +4,15 @@ $survey=$controller;
 //echo $survey->surveyName.'<br>';
 $miniSurvey=new MiniSurvey($b);
 $miniSurvey->frontEndMode=true;
+$miniSurveySubmitted = ($_GET['surveySuccess'] && $_GET['qsid'] == intval($survey->questionSetId)) ? true : false;
 ?>
 <a name="<?php echo $survey->questionSetId ?>"></a><br/>
 <?php if ($invalidIP) { ?>
-<div class="ccm-error"><p><?=$invalidIP?></p></div>
-<? } ?>
-<form enctype="multipart/form-data" id="miniSurveyView<?=intval($bID)?>" class="miniSurveyView" method="post" action="<?php echo $this->action('submit_form').'#'.$survey->questionSetId?>">
-	<?php  if( $_GET['surveySuccess'] && $_GET['qsid']==intval($survey->questionSetId) ){ ?>
+<div class="ccm-error"><p><?php echo $invalidIP?></p></div>
+<?php } ?>
+
+<form enctype="multipart/form-data" id="miniSurveyView<?php echo intval($bID)?>" class="miniSurveyView<?php echo $miniSurveySubmitted ? ' miniSurveyView-submitted' : ' miniSurveyView-not-submitted'; ?>" method="post" action="<?php echo $this->action('submit_form').'#'.$survey->questionSetId?>">
+	<?php  if ($miniSurveySubmitted) { ?>
 		<div id="msg"><?php echo $survey->thankyouMsg ?></div> 
 	<?php  }elseif(strlen($formResponse)){ ?>
 		<div id="msg">
@@ -20,8 +22,7 @@ $miniSurvey->frontEndMode=true;
 				echo '<div class="error">'.$error.'</div>';
 			} ?>
 		</div>
-	<? } ?>
-	<input name="qsID" type="hidden" value="<?= intval($survey->questionSetId)?>" />
-	<input name="pURI" type="hidden" value="<?= $pURI ?>" />
+	<?php } ?>
+	<input name="qsID" type="hidden" value="<?php echo intval($survey->questionSetId)?>" />
 	<?php  $miniSurvey->loadSurvey( $survey->questionSetId, 0, intval($bID) );  ?> 
 </form>

@@ -1,4 +1,4 @@
-<?
+<?php
 
 defined('C5_EXECUTE') or die("Access Denied.");
 
@@ -16,13 +16,15 @@ $collectionType=CollectionType::getByID($ctID);
 
 $c = Page::getByID($previewCID, 'RECENT'); //,"ACTIVE"
 $cp = new Permissions($c);
-if(!$cp->canWrite()) throw new Exception(t('Access Denied'));
+if(!$cp->canEditPageTheme()) throw new Exception(t('Access Denied'));
 
 $v = View::getInstance(); 
-$th = PageTheme::getByID($themeID);
-if(!file_exists($th->getThemeDirectory()))
-	throw new Exception(t('Theme not found in %s', $th->getThemeDirectory()));
-$v->setTheme($th);
+if ($themeID > 0) { 
+	$th = PageTheme::getByID($themeID);
+	if(!file_exists($th->getThemeDirectory()))
+		throw new Exception(t('Theme not found in %s', $th->getThemeDirectory()));
+	$v->setTheme($th);
+}
 $v->disableEditing();
 $v->disableLinks();
 $v->enablePreview();

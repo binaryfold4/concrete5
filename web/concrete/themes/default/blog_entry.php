@@ -3,7 +3,7 @@ $this->inc('elements/header.php'); ?>
 
 	<div id="central">
 		<div id="sidebar">
-			<?
+			<?php
 			$as = new Area('Sidebar');
 			$as->display($c);
 			?>		
@@ -15,7 +15,12 @@ $this->inc('elements/header.php'); ?>
 			</div>
 			<div class="pageSection">
 				<h1><?php echo $c->getCollectionName(); ?></h1>
-				<p class="meta"><?php echo t('Posted by')?> <?php echo $c->getVersionObject()->getVersionAuthorUserName(); ?> on <?php echo $c->getCollectionDatePublic('F j, Y'); ?></p>		
+				<p class="meta"><?php
+					echo t('Posted by %s on %s',
+						$c->getVersionObject()->getVersionAuthorUserName(),
+						Loader::helper('date')->formatDate($c->getCollectionDatePublic(), true)
+					);
+				?></p>		
 			</div>
 			<div class="pageSection">
 				<?php $as = new Area('Main'); $as->display($c); ?>

@@ -1,9 +1,9 @@
-<? 
+<?php 
 defined('C5_EXECUTE') or die("Access Denied.");
 ?>
 </div>
 
-<? 
+<?php 
 
 // simple file that controls the adding of blocks.
 
@@ -22,31 +22,19 @@ $u = new User();
 $ap = new Permissions($a);
 $cp = new Permissions($c);
 
-if ($a->areaAcceptsBlocks()) { ?>
-
-<? if (!$c->isArrangeMode()) { ?>
+if (!$c->isArrangeMode()) { ?>
 	<script type="text/javascript">
-	ccm_areaMenuObj<?=$a->getAreaID()?> = new Object();
-	ccm_areaMenuObj<?=$a->getAreaID()?>.type = "AREA";
-	ccm_areaMenuObj<?=$a->getAreaID()?>.aID = <?=$a->getAreaID()?>;
-	ccm_areaMenuObj<?=$a->getAreaID()?>.arHandle = "<?=$arHandle?>";
-	ccm_areaMenuObj<?=$a->getAreaID()?>.canAddBlocks = <?=$ap->canAddBlocks()?>;
-	ccm_areaMenuObj<?=$a->getAreaID()?>.canWrite = <?=$ap->canWrite()?>;
-	<? if ($cp->canAdmin() && PERMISSIONS_MODEL != 'simple') { ?>
-		ccm_areaMenuObj<?=$a->getAreaID()?>.canModifyGroups = true;
-	<? } ?>
-	<? if ($ap->canWrite() && ENABLE_AREA_LAYOUTS == true && (!$c->isMasterCollection())) { ?>
-		ccm_areaMenuObj<?=$a->getAreaID()?>.canLayout = true;
-	<? } else { ?>
-		ccm_areaMenuObj<?=$a->getAreaID()?>.canLayout = false;
-	<? } ?>
-	<? if ($ap->canWrite() && ENABLE_CUSTOM_DESIGN == true && (!$c->isMasterCollection())) { ?>
-		ccm_areaMenuObj<?=$a->getAreaID()?>.canDesign = true;
-	<? } else { ?>
-		ccm_areaMenuObj<?=$a->getAreaID()?>.canDesign = false;
-	<? } ?>
-	$(function() {ccm_menuInit(ccm_areaMenuObj<?=$a->getAreaID()?>)});
+	ccm_areaMenuObj<?php echo $a->getAreaID()?> = new Object();
+	ccm_areaMenuObj<?php echo $a->getAreaID()?>.type = "AREA";
+	ccm_areaMenuObj<?php echo $a->getAreaID()?>.aID = <?php echo $a->getAreaID()?>;
+	ccm_areaMenuObj<?php echo $a->getAreaID()?>.arHandle = "<?php echo $arHandle?>";
+	ccm_areaMenuObj<?php echo $a->getAreaID()?>.maximumBlocks = <?php echo $a->maximumBlocks?>;
+    <?php Loader::element('block_area_permissions_js', array('a' => $a, 'ap' => $ap, 'c' => $c, 'cp' => $cp)); ?> 
+	$(function() {ccm_menuInit(ccm_areaMenuObj<?php echo $a->getAreaID()?>)});
 	</script>
-	<div id="a<?=$a->getAreaID()?>controls" class="ccm-add-block"><?=t('Add To %s', $arHandle)?></div>
-	<? } ?>
-<? } ?>
+	<?php if ($a->isGlobalArea()) { ?>
+		<div id="a<?php echo $a->getAreaID()?>controls" class="ccm-add-block"><?php echo t('Add To Sitewide %s', tc('AreaName', $arHandle))?></div>
+	<?php } else { ?>
+		<div id="a<?php echo $a->getAreaID()?>controls" class="ccm-add-block"><?php echo t('Add To %s', tc('AreaName', $arHandle))?></div>
+	<?php } ?>
+<?php } ?>

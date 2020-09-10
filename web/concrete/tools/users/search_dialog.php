@@ -1,4 +1,4 @@
-<?
+<?php
 defined('C5_EXECUTE') or die("Access Denied.");
 
 $tp = new TaskPermission();
@@ -10,35 +10,30 @@ $cnt = Loader::controller('/dashboard/users/search');
 $userList = $cnt->getRequestedSearchResults();
 $users = $userList->getPage();
 $pagination = $userList->getPagination();
+$columns = $cnt->get('columns');
+
 if (!isset($mode)) {
-	$mode = $_REQUEST['mode'];
+	$mode = Loader::helper('text')->entities($_REQUEST['mode']);
 }
+
+ob_start();
+Loader::element('users/search_form_advanced', array('columns' => $columns, 'mode' => $mode)) ;
+$searchForm = ob_get_contents();
+ob_end_clean();
+
+$v = View::getInstance();
+$v->outputHeaderItems();
+
 ?>
 
+<div class="ccm-ui">
 <div id="ccm-search-overlay" >
-	
-		<table id="ccm-search-form-table" >
-			<tr>
-				<td valign="top" class="ccm-search-form-advanced-col">
-					<? Loader::element('users/search_form_advanced', array('mode' => $mode)) ; ?>
-				</td>		
-				<? /* <div id="ccm-file-search-advanced-fields-gutter">&nbsp;</div> */ ?>		
-				<td valign="top" width="100%">	
-					
-					<div id="ccm-search-advanced-results-wrapper">
-					
-						<div id="ccm-user-search-results">
-						
-							<? Loader::element('users/search_results', array('mode' => $mode, 'users' => $users, 'userList' => $userList, 'pagination' => $pagination)); ?>
-						
-						</div>
-					
-					</div>
-				
-				</td>	
-			</tr>
-		</table>		
+<div class="ccm-pane-options" id="ccm-<?php echo $searchInstance?>-pane-options">
+	<?php echo $searchForm?>
+</div>
 
+<?php Loader::element('users/search_results', array('columns' => $columns, 'mode' => $mode, 'users' => $users, 'userList' => $userList, 'pagination' => $pagination)); ?>
+</div>
 </div>
 
 <script type="text/javascript">

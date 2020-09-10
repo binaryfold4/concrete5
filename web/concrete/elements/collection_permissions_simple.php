@@ -1,54 +1,89 @@
-<?
+<?php
 defined('C5_EXECUTE') or die("Access Denied.");
-if ($cp->canAdminPage()) {
-$gArray = array();
-$gl = new GroupList($c, false, true);
-$gArray = $gl->getGroupList();
+if ($cp->canEditPagePermissions()) {
+	$editAccess = array();
+	$viewAccess = array();
+		
+	$pk = PermissionKey::getByHandle('view_page');
+	$pk->setPermissionObject($c);
+	$assignments = $pk->getAccessListItems();
+	foreach($assignments as $asi) {
+		$ae = $asi->getAccessEntityObject();
+		if ($ae->getAccessEntityTypeHandle() == 'group') {
+			$group = $ae->getGroupObject();
+			if (is_object($group)) {
+				$viewAccess[] = $group->getGroupID();
+			}
+		}
+	}
+
+	$pk = PermissionKey::getByHandle('edit_page_contents');
+	$pk->setPermissionObject($c);
+	$assignments = $pk->getAccessListItems();
+	foreach($assignments as $asi) {
+		$ae = $asi->getAccessEntityObject();
+		if ($ae->getAccessEntityTypeHandle() == 'group') {
+			$group = $ae->getGroupObject();
+			if (is_object($group)) {
+				$editAccess[] = $group->getGroupID();
+			}
+		}
+	}
+	
+	Loader::model('search/group');
+	$gl = new GroupSearch();
+	$gl->sortBy('gID', 'asc');
+	$gIDs = $gl->get();
+	$gArray = array();
+	foreach($gIDs as $g) {
+		$gArray[] = Group::getByID($g['gID']);
+	}
+
+	$rel = Loader::helper('security')->sanitizeString($_REQUEST['rel']);
 ?>
 
-<div class="ccm-pane-controls">
-<form method="post" id="ccmPermissionsForm" name="ccmPermissionsForm" action="<?=$c->getCollectionAction()?>">
-<input type="hidden" name="rel" value="<?=$_REQUEST['rel']?>" />
+<div class="ccm-ui">
+<form method="post" id="ccmPermissionsForm" name="ccmPermissionsForm" action="<?php echo $c->getCollectionAction()?>">
+<input type="hidden" name="rel" value="<?php echo h($rel); ?>" />
 
-<h1><?=t('Page Access')?></h1>
+<div class="clearfix">
+<h3><?php echo t('Who can view this page?')?></h3>
 
-<div class="ccm-form-area">
+<ul class="inputs-list">
 
-<div class="ccm-field">
-
-<h2><?=t('Who can view this page?')?></h2>
-
-<?
+<?php
 
 foreach ($gArray as $g) {
 ?>
 
-<input type="checkbox" name="readGID[]" value="<?=$g->getGroupID()?>" <? if ($g->canRead()) { ?> checked <? } ?> /> <?=$g->getGroupName()?><br/>
+<li><label><input type="checkbox" name="readGID[]" value="<?php echo $g->getGroupID()?>" <?php if (in_array($g->getGroupID(), $viewAccess)) { ?> checked <?php } ?> /> <?php echo $g->getGroupDisplayName()?></label></li>
 
-<? } ?>
+<?php } ?>
 
+</ul>
 </div>
 
-<div class="ccm-field">
+<div class="clearfix">
 
-<h2><?=t('Who can edit this page?')?></h2>
+<h3><?php echo t('Who can edit this page?')?></h3>
 
-<?
+<ul class="inputs-list">
+
+<?php
 
 foreach ($gArray as $g) {
 ?>
 
-<input type="checkbox" name="editGID[]" value="<?=$g->getGroupID()?>" <? if ($g->canWrite()) { ?> checked <? } ?> /> <?=$g->getGroupName()?><br/>
+<li><label><input type="checkbox" name="editGID[]" value="<?php echo $g->getGroupID()?>" <?php if (in_array($g->getGroupID(), $editAccess)) { ?> checked <?php } ?> /> <?php echo $g->getGroupDisplayName()?></label></li>
 
-<? } ?>
+<?php } ?>
 
-
+</ul>
 </div>
-</div>
 
-<div class="ccm-buttons">
-<!--	<a href="javascript:void(0)" onclick="ccm_hidePane()" class="ccm-button-left cancel"><span><em class="ccm-button-close">Cancel</em></span></a>//-->
-	<a href="javascript:void(0)" onclick="$('form[name=ccmPermissionsForm]').submit()" class="ccm-button-right accept"><span><?=t('Save')?></span></a>
+<div class="dialog-buttons">
+	<a href="javascript:void(0)" onclick="jQuery.fn.dialog.closeTop();" class="ccm-button-left btn"><?php echo t('Cancel')?></a>
+	<a href="javascript:void(0)" onclick="$('form[name=ccmPermissionsForm]').submit()" class="ccm-button-right btn primary"><?php echo t('Save')?></a>
 </div>	
 <input type="hidden" name="update_permissions" value="1" class="accept">
 <input type="hidden" name="processCollection" value="1">
@@ -63,14 +98,11 @@ $(function() {
 		},
 		success: function(r) {
 			var r = eval('(' + r + ')');
+			jQuery.fn.dialog.hideLoader();
+			jQuery.fn.dialog.closeTop();
+
 			if (r != null && r.rel == 'SITEMAP') {
-				jQuery.fn.dialog.hideLoader();
-				jQuery.fn.dialog.closeTop();
 				ccmSitemapHighlightPageLabel(r.cID);
-			} else {
-				ccm_hidePane(function() {
-					jQuery.fn.dialog.hideLoader();						
-				});
 			}
 			ccmAlert.hud(ccmi18n_sitemap.setPagePermissionsMsg, 2000, 'success', ccmi18n_sitemap.setPagePermissions);
 		}
@@ -81,4 +113,4 @@ $(function() {
 <div class="ccm-spacer">&nbsp;</div>
 </form>
 </div>
-<? } ?>
+<?php } ?>

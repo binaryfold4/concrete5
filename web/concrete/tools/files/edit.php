@@ -1,4 +1,4 @@
-<?
+<?php
 defined('C5_EXECUTE') or die("Access Denied.");
 $u = new User();
 $form = Loader::helper('form');
@@ -8,7 +8,7 @@ $f = File::getByID($_REQUEST['fID']);
 $fv = $f->getApprovedVersion();
 
 $fp = new Permissions($f);
-if (!$fp->canWrite()) {
+if (!$fp->canEditFileContents()) {
 	die(t("Access Denied."));
 }
 

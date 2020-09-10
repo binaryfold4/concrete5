@@ -1,78 +1,95 @@
 <?php
-defined('C5_EXECUTE') or die("Access Denied."); ?>
+defined('C5_EXECUTE') or die("Access Denied."); 
 
-<? if ($this->controller->getTask() == 'viewDetail') { ?>
-	<h1><span><?=t('Results for &#34;%s&#34;', $current_survey)?></span></h1>
-	<div class="ccm-dashboard-inner">
-	
-	<div class="surveyOverview" >
-		<div id="displayOptions">
-			<a href="<?=$this->action('view')?>">&#60;&#60; Back to List</a>
-		</div>
-		<table class="entry-form" >
-			<tr>
-				<td class="header"><?=t('Option')?></td>
-				<td class="header"><?=t('IP Address')?></td>
-				<td class="header"><?=t('Date')?></td>
-				<td class="header"><?=t('User')?></td>
-			</tr>
-			<? 
-			foreach($survey_details as $detail) { ?>
-			<tr>
-				<td><?=$detail['option'] ?></td>
-				<td><?=$detail['ipAddress'] ?></td>
-				<td><?=$detail['date'] ?></td>
-				<td><?=$detail['user'] ?></td>
-			</tr>
-		<? } ?>
-	</table>
+// Helpers
+$ih = Loader::helper('concrete/interface');
+
+// Content
+if ($this->controller->getTask() == 'viewDetail') { ?>
+
+    <?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('Results for &#34;%s&#34;', $current_survey), false, false, false);?>
+    
+	<div class="ccm-pane-body">
+    
+    	<div class="row">
+    
+          <div class="span10">
+      
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                    <th><?php echo t('Option')?></th>
+                    <th><?php echo t('IP Address')?></th>
+                    <th><?php echo t('Date')?></th>
+                    <th><?php echo t('User')?></th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php 
+                foreach($survey_details as $detail) { ?>
+                <tr>
+                    <td><?php echo $detail['option'] ?></td>
+                    <td><?php echo $detail['ipAddress'] ?></td>
+                    <td><?php echo $detail['date'] ?></td>
+                    <td><?php echo $detail['user'] ?></td>
+                </tr>
+              <?php } ?>
+              </tbody>
+            </table>
+        
+          </div>
+          
+          <div class="span5" style="margin-left:30px;">
+      
+            <div style="text-align:center;">
+              <?php echo $pie_chart ?>
+              <?php echo $chart_options ?>              
+            </div>
+        
+          </div>
+        
+        </div>
+        
 	</div>
-	
-		<div>
-			<?= $chart_options ?>
-			<?= $pie_chart ?>
-		</div>
-		<div style="clear: both;"></div>
-	</div>
-	</div>
+    
+    <div class="ccm-pane-footer">
+        <?php print $ih->button(t('Back to List'), $this->action('view'), 'left'); ?>
+    </div>
+    
+    <?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper(false)?>
 
-<? } else { ?>
+<?php } else { ?>
 
-<h1><span><?=t('Surveys')?></span></h1>
-<div class="ccm-dashboard-inner">
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('Surveys'), false, false);?>
 	
-	<? if (count($surveys) == 0) { ?>
-	<?=t('You have not created any surveys.')?>
-	<? } else { ?>
-	
-	<div class="surveyDetails">
+	<?php if (count($surveys) == 0) { ?>
+	<?php echo "<p>".t('You have not created any surveys.')."</p>" ?>
+	<?php } else { ?>
 
-		<table class="entry-form" >
-			<tr>
-				<td class="header"><a href="<?=$surveyList->getSortByURL('question', 'asc')?>"><?=t('Name')?></a></td>
-				<td class="header"><a href="<?=$surveyList->getSortByURL('cvName', 'asc')?>"><?=t('Found on Page')?></a></td>
-				<td class="header"><a href="<?=$surveyList->getSortByURL('lastResponse', 'desc')?>"><?=t('Last Response')?></a></td>
-				<td class="header"><a href="<?=$surveyList->getSortByURL('numberOfResponses', 'desc')?>"><?=t('Number of Responses')?></a></td>
-			</tr>
-			<? foreach($surveys as $survey) { ?>
+		<table class="table table-striped">
+        	<thead>
+                <tr>
+                    <th class="<?php echo $surveyList->getSearchResultsClass('question')?>"><a href="<?php echo $surveyList->getSortByURL('question', 'asc')?>"><?php echo t('Name')?></a></th>
+                    <th class="<?php echo $surveyList->getSearchResultsClass('cvName')?>"><a href="<?php echo $surveyList->getSortByURL('cvName', 'asc')?>"><?php echo t('Found on Page')?></a></th>
+                    <th class="<?php echo $surveyList->getSearchResultsClass('lastResponse')?>"><a href="<?php echo $surveyList->getSortByURL('lastResponse', 'desc')?>"><?php echo t('Last Response')?></a></th>
+                    <th class="<?php echo $surveyList->getSearchResultsClass('numberOfResponses')?>"><a href="<?php echo $surveyList->getSortByURL('numberOfResponses', 'desc')?>"><?php echo t('Number of Responses')?></a></th>
+                </tr>
+            </thead>
+            <tbody>
+			<?php foreach($surveys as $survey) { ?>
 					<tr>
-						<td><a href="<?=$this->action('viewDetail', $survey['bID'], $survey['cID'])?>"><?=$survey['question'] ?></a></td>
-						<td><?=$survey['cvName'] ?></td>
-						<td><?=formatDate($survey['lastResponse']) ?></td>
-						<td><?=$survey['numberOfResponses'] ?></td>
+						<td><strong><a href="<?php echo $this->action('viewDetail', $survey['bID'], $survey['cID'])?>"><?php echo $survey['question'] ?></a></strong></td>
+						<td><?php echo $survey['cvName'] ?></td>
+						<td><?php echo $this->controller->formatDate($survey['lastResponse']) ?></td>
+						<td><?php echo $survey['numberOfResponses'] ?></td>
 					</tr>
-				<? }
+				<?php }
 			} ?>
+            </tbody>
 		</table>
 		
-		<? $surveyList->displayPaging(); ?>
-	</div>
-	
-	
-	</div>
-</div>
+		<?php $surveyList->displayPagingV2(); ?>
+    
+    <?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper()?>
 
-
-
-
-<? } ?>
+<?php } ?>

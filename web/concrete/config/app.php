@@ -1,4 +1,4 @@
-<?
+<?php
 /**
  *
  * When this file is run it basically queries the database for site config items and sets those up, possibly overriding items in the base.php.
@@ -9,15 +9,16 @@
  **/
 defined('C5_EXECUTE') or die("Access Denied."); 
 
-if (!defined('ENABLE_CACHE')) {
-	Config::getOrDefine('ENABLE_CACHE', true); 
-}
-if (!ENABLE_CACHE) {
-	Cache::disableCache();
+if (!defined('ENABLE_OVERRIDE_CACHE')) {
+	Config::getOrDefine('ENABLE_OVERRIDE_CACHE', false); 
 }
 
-if (ENABLE_CACHE) {
-	Config::getOrDefine('FULL_PAGE_CACHE_GLOBAL', 'blocks');	
+if (!defined('ENABLE_BLOCK_CACHE')) {
+	Config::getOrDefine('ENABLE_BLOCK_CACHE', true); 
+}
+
+if (!defined('FULL_PAGE_CACHE_GLOBAL')) {
+	Config::getOrDefine('FULL_PAGE_CACHE_GLOBAL', false);	
 }
 
 if (!defined('STATISTICS_TRACK_PAGE_VIEWS')) {
@@ -48,92 +49,51 @@ if (!defined('URL_REWRITING')) {
 	Config::getOrDefine('URL_REWRITING', false);
 }
 
-# New date constants
-if (!defined('DATE_APP_GENERIC_MDYT_FULL')) {
-	define('DATE_APP_GENERIC_MDYT_FULL', t('F d, Y \a\t g:i A'));
-}
-
-if (!defined('DATE_APP_GENERIC_MDYT')) {
-	define('DATE_APP_GENERIC_MDYT', t('n/j/Y \a\t g:i A'));
-}
-
-if (LOCALE != 'en_US') {
-	define('DATE_APP_GENERIC_MDY', 'Y-m-d');
-}
-
-if (!defined('DATE_APP_GENERIC_MDY')) {
-	define('DATE_APP_GENERIC_MDY', t('n/j/Y'));
-}
-
-if (!defined('DATE_APP_GENERIC_MDY_FULL')) {
-	define('DATE_APP_GENERIC_MDY_FULL', t('F d, Y'));
-}
-
-if (!defined('DATE_APP_GENERIC_T')) {
-	define('DATE_APP_GENERIC_T', t('g:i A'));
-}
-
-if (!defined('DATE_APP_GENERIC_TS')) {
-	define('DATE_APP_GENERIC_TS', t('g:i:s A'));
-}
-
-if (!defined('DATE_APP_FILENAME')) {
-	define('DATE_APP_FILENAME', t('d-m-Y_H:i_')); // used when dates are used to start filenames
-}
-
-if (!defined('DATE_APP_FILE_PROPERTIES')) {
-	define('DATE_APP_FILE_PROPERTIES', DATE_APP_GENERIC_MDYT_FULL);
-}
-if (!defined('DATE_APP_FILE_VERSIONS')) {
-	define('DATE_APP_FILE_VERSIONS', DATE_APP_GENERIC_MDYT_FULL);
-}
-if (!defined('DATE_APP_FILE_DOWNLOAD')) {
-	define('DATE_APP_FILE_DOWNLOAD', DATE_APP_GENERIC_MDYT_FULL);
-}
-
-if (!defined('DATE_APP_PAGE_VERSIONS')) {
-	define('DATE_APP_PAGE_VERSIONS', DATE_APP_GENERIC_MDYT);
-}
-if (!defined('DATE_APP_DASHBOARD_SEARCH_RESULTS_USERS')) {
-	define('DATE_APP_DASHBOARD_SEARCH_RESULTS_USERS', DATE_APP_GENERIC_MDYT);
-}
-
-if (!defined('DATE_APP_DASHBOARD_SEARCH_RESULTS_FILES')) {
-	define('DATE_APP_DASHBOARD_SEARCH_RESULTS_FILES', DATE_APP_GENERIC_MDYT);
-}
-
-if (!defined('DATE_APP_DASHBOARD_SEARCH_RESULTS_PAGES')) {
-	define('DATE_APP_DASHBOARD_SEARCH_RESULTS_PAGES', DATE_APP_GENERIC_MDYT);
-}
-
-if (!defined('DATE_APP_DATE_ATTRIBUTE_TYPE_MDY')) {
-	define('DATE_APP_DATE_ATTRIBUTE_TYPE_MDY', DATE_APP_GENERIC_MDY);
-}
-if (!defined('DATE_APP_DATE_ATTRIBUTE_TYPE_T')) {
-	define('DATE_APP_DATE_ATTRIBUTE_TYPE_T', DATE_APP_GENERIC_TS);
-}
-
-
-if (!defined('DATE_APP_SURVEY_RESULTS')) {
-	// NO DEFINE HERE, JUST PLACING HERE TO MAKE A NOTE OF IT
-}
-
-if (!defined('DATE_FORM_HELPER_FORMAT_HOUR')) {
-	define('DATE_FORM_HELPER_FORMAT_HOUR', '12'); // can be 12 or 24
-}
 
 # Default marketplace support
 if (!defined('ENABLE_MARKETPLACE_SUPPORT')){  
 	$marketplace_enabled=Config::get('ENABLE_MARKETPLACE_SUPPORT');
 	if( $marketplace_enabled==NULL ){ 
-		Config::save('ENABLE_MARKETPLACE_SUPPORT', 1 );
-		$marketplace_enabled==true;
+		Config::save('ENABLE_MARKETPLACE_SUPPORT', 0 );
+		$marketplace_enabled==false;
 	} 
 	define('MARKETPLACE_CONFIG_OVERRIDE',false);
 	define('ENABLE_MARKETPLACE_SUPPORT',$marketplace_enabled); 
 	//Config::getOrDefine('MARKETPLACE_ENABLED', true);	
 }else{
 	define('MARKETPLACE_CONFIG_OVERRIDE',true);
+}
+
+if (!defined('ENABLE_INTELLIGENT_SEARCH_HELP')) {
+	Config::getOrDefine('ENABLE_INTELLIGENT_SEARCH_HELP', false);
+}
+
+if (!defined('ENABLE_INTELLIGENT_SEARCH_MARKETPLACE')) {
+	if (!ENABLE_MARKETPLACE_SUPPORT) {
+		define('ENABLE_INTELLIGENT_SEARCH_MARKETPLACE', false);
+	} else { 
+		Config::getOrDefine('ENABLE_INTELLIGENT_SEARCH_MARKETPLACE', true);
+	}
+}
+
+if (!defined('ENABLE_NEWSFLOW_OVERLAY')) {
+	Config::getOrDefine('ENABLE_NEWSFLOW_OVERLAY', false);
+}
+
+if (!defined('WHITE_LABEL_LOGO_SRC')) {
+	Config::getOrDefine('WHITE_LABEL_LOGO_SRC', false);
+}
+
+if (!defined('WHITE_LABEL_APP_NAME')) {
+	Config::getOrDefine('WHITE_LABEL_APP_NAME', false);
+}
+
+if (!defined("ENABLE_AREA_LAYOUTS")) {
+	Config::getOrDefine('ENABLE_AREA_LAYOUTS', true);
+}
+
+if (!defined("ENABLE_CUSTOM_DESIGN")) {
+	Config::getOrDefine('ENABLE_CUSTOM_DESIGN', true);
 }
 
 if (!defined('URL_REWRITING_ALL')) { 
@@ -144,6 +104,17 @@ if (!defined('ENABLE_LEGACY_CONTROLLER_URLS')) {
 	define('ENABLE_LEGACY_CONTROLLER_URLS', false);
 }
 
+if (!defined('ENABLE_PROGRESSIVE_PAGE_REINDEX')) {
+	define('ENABLE_PROGRESSIVE_PAGE_REINDEX', true);
+}
+
+if (!defined('ENABLE_APP_NEWS')) {
+	Config::getOrDefine('ENABLE_APP_NEWS', true);
+}
+
+if (!defined('FORBIDDEN_SHOW_LOGIN')) {
+	Config::getOrDefine('FORBIDDEN_SHOW_LOGIN', true); //show the login page instead of forbidden for non-logged in users
+}
 
 if (URL_REWRITING_ALL == true) {
 	define('URL_SITEMAP', BASE_URL . DIR_REL . '/dashboard/sitemap');
@@ -187,7 +158,9 @@ if (!defined('ENABLE_OPENID_AUTHENTICATION')) {
 	Config::getOrDefine('ENABLE_OPENID_AUTHENTICATION', false);
 }
 
-Config::getOrDefine('MAIL_SEND_METHOD', 'PHP_MAIL');
+if (!defined('MAIL_SEND_METHOD')) { 
+	Config::getOrDefine('MAIL_SEND_METHOD', 'PHP_MAIL');
+}
 
 if (!defined('ENABLE_REGISTRATION_CAPTCHA')) { 
 	Config::getOrDefine('ENABLE_REGISTRATION_CAPTCHA', true);
@@ -219,6 +192,14 @@ if (!defined('USER_REGISTRATION_APPROVAL_REQUIRED')) {
 	Config::getOrDefine('USER_REGISTRATION_APPROVAL_REQUIRED', false);
 }
 
+if (!defined('REGISTER_NOTIFICATION')) {
+	Config::getOrDefine('REGISTER_NOTIFICATION', false);
+}
+
+if (!defined('EMAIL_ADDRESS_REGISTER_NOTIFICATION')) {
+	Config::getOrDefine('EMAIL_ADDRESS_REGISTER_NOTIFICATION', false);
+}
+
 if (!defined('REGISTRATION_TYPE')) {
 	Config::getOrDefine('REGISTRATION_TYPE', 'disabled');	
 }
@@ -242,16 +223,23 @@ if(!defined('USER_PRIVATE_MESSAGE_MAX_TIME_SPAN')) {
 //these are the hashkey types for registration related authentication
 define('UVTYPE_REGISTER', 0);
 define('UVTYPE_CHANGE_PASSWORD', 1);
-
+define('UVTYPE_LOGIN_FOREVER', 2);
 
 if (!defined('UPLOAD_FILE_EXTENSIONS_ALLOWED')) {
-	Config::getOrDefine('UPLOAD_FILE_EXTENSIONS_ALLOWED','*.flv;*.jpg;*.gif;*.jpeg;*.ico;*.docx;*.xla;*.png;*.psd;*.swf;*.doc;*.txt;*.xls;*.csv;*.pdf;*.tiff;*.rtf;*.m4a;*.mov;*.wmv;*.mpeg;*.mpg;*.wav;*.avi;*.mp4;*.mp3;*.qt;*.ppt;*.kml;*.xml');
+	Config::getOrDefine('UPLOAD_FILE_EXTENSIONS_ALLOWED','*.flv;*.jpg;*.gif;*.jpeg;*.ico;*.docx;*.xla;*.png;*.psd;*.swf;*.doc;*.txt;*.xls;*.xlsx;*.csv;*.pdf;*.tiff;*.rtf;*.m4a;*.mov;*.wmv;*.mpeg;*.mpg;*.wav;*.3gp;*.avi;*.m4v;*.mp4;*.mp3;*.qt;*.ppt;*.pptx;*.kml;*.xml;*.svg;*.webm;*.ogg;*.ogv');
 	define('UPLOAD_FILE_EXTENSIONS_CONFIGURABLE', true);
 } else {
 	define('UPLOAD_FILE_EXTENSIONS_CONFIGURABLE', false);
 }
 
-define('BLOCK_NOT_AVAILABLE_TEXT', t('This block is no longer available.'));
-define('GUEST_GROUP_NAME', t('Guest'));
-define('REGISTERED_GROUP_NAME', t('Registered Users'));
-define('ADMIN_GROUP_NAME', t('Admin'));
+if (!defined('SEO_EXCLUDE_WORDS')) {
+	Config::getOrDefine('SEO_EXCLUDE_WORDS', 'a, an, as, at, before, but, by, for, from, is, in, into, like, of, off, on, onto, per, since, than, the, this, that, to, up, via, with');
+}
+
+if (!defined('ENABLE_JOB_SCHEDULING')) {
+	Config::getOrDefine('ENABLE_JOB_SCHEDULING', true);
+}
+
+if (!defined('JOB_QUEUE_BATCH_SIZE')) {
+	define('JOB_QUEUE_BATCH_SIZE', 10);
+}

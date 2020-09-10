@@ -1,80 +1,62 @@
+<?php defined('C5_EXECUTE') or die("Access Denied."); ?>
+<?php if (isset($key)) { ?>
 
-<? if ($this->controller->getTask() != 'select_type' && $this->controller->getTask() != 'add' && $this->controller->getTask() != 'edit') { ?>
-	<h1><a class="ccm-dashboard-header-option" href="<?=$this->url('/dashboard/settings/', 'manage_attribute_types')?>"><?=t('Manage Attribute Types')?></a><span><?=t('Attributes')?></span></h1>
-	<div class="ccm-dashboard-inner">
-	<?
-	$attribs = FileAttributeKey::getList();
-	Loader::element('dashboard/attributes_table', array('category' => $category, 'attribs'=> $attribs, 'editURL' => '/dashboard/files/attributes')); ?>
-
-</div>
-
-<? } ?>
+<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('Edit Attribute'), false, false, false)?>
+<form method="post" action="<?php echo $this->action('edit')?>" id="ccm-attribute-key-form">
 
 
-<? if (isset($key)) { ?>
 
-<h1><span><?=t('Edit Attribute')?></span></h1>
-<div class="ccm-dashboard-inner">
-
-<h2><?=t('Attribute Type')?></h2>
-
-<strong><?=$type->getAttributeTypeName()?></strong>
-<br/><br/>
-
-
-<form method="post" action="<?=$this->action('edit')?>" id="ccm-attribute-key-form">
-
-<? Loader::element("attribute/type_form_required", array('category' => $category, 'type' => $type, 'key' => $key)); ?>
-
-</form>	
-
-</div>
-
-<h1><span><?=t('Delete Attribute')?></span></h1>
-
-<div class="ccm-dashboard-inner">
-	<div class="ccm-spacer"></div>
-	<?
-	$valt = Loader::helper('validation/token');
-	$ih = Loader::helper('concrete/interface');
-	$delConfirmJS = t('Are you sure you want to remove this attribute?');
-	?>
-	<script type="text/javascript">
-	deleteAttribute = function() {
-		if (confirm('<?=$delConfirmJS?>')) { 
-			location.href = "<?=$this->url('/dashboard/files/attributes', 'delete', $key->getAttributeKeyID(), $valt->generate('delete_attribute'))?>";				
-		}
-	}
-	</script>
-	<? print $ih->button_js(t('Delete Attribute'), "deleteAttribute()", 'left');?>
-
-	<div class="ccm-spacer"></div>
-</div>
-
-<? } else { ?>
-
-<h1><span><?=t('Add File Attribute')?></span></h1>
-<div class="ccm-dashboard-inner">
-
-<h2><?=t('Choose Attribute Type')?></h2>
-
-<form method="get" action="<?=$this->action('select_type')?>" id="ccm-attribute-type-form">
-
-<?=$form->select('atID', $types)?>
-<?=$form->submit('submit', t('Go'))?>
+<?php Loader::element("attribute/type_form_required", array('category' => $category, 'type' => $type, 'key' => $key)); ?>
 
 </form>
 
-<? if (isset($type)) { ?>
-	<br/>
+<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper(false);?>
 
-	<form method="post" action="<?=$this->action('add')?>" id="ccm-attribute-key-form">
 
-	<? Loader::element("attribute/type_form_required", array('category' => $category, 'type' => $type)); ?>
 
-	</form>	
-<? } ?>
 
-</div>
+<?php } else if ($this->controller->getTask() == 'select_type' || $this->controller->getTask() == 'add' || $this->controller->getTask() == 'edit') { ?>
 
-<? } ?>
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('File Attributes'), false, false, false)?>
+
+	<?php if (isset($type)) { ?>
+		<form method="post" action="<?php echo $this->action('add')?>" id="ccm-attribute-key-form">
+	
+		<?php Loader::element("attribute/type_form_required", array('category' => $category, 'type' => $type)); ?>
+	
+		</form>	
+	<?php } ?>
+	
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper(false);?>
+
+
+
+<?php } else { ?>
+
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneHeaderWrapper(t('File Attributes'), false, false, false)?>
+
+	<?php
+	$attribs = FileAttributeKey::getList();
+	Loader::element('dashboard/attributes_table', array('category' => $category, 'attribs'=> $attribs, 'editURL' => '/dashboard/files/attributes')); ?>
+
+
+	<div class="ccm-pane-body ccm-pane-body-footer" style="margin-top: -25px">
+
+	<form method="get" class="form-stacked inline-form-fix" action="<?php echo $this->action('select_type')?>" id="ccm-attribute-type-form">
+	<div class="clearfix">
+	<?php echo $form->label('atID', t('Add Attribute'))?>
+	<div class="input">
+	
+	<?php echo $form->select('atID', $types)?>
+	<?php echo $form->submit('submit', t('Go'))?>
+	
+	</div>
+	</div>
+	
+	</form>
+
+	</div>
+	
+	<?php echo Loader::helper('concrete/dashboard')->getDashboardPaneFooterWrapper(false);?>
+
+<?php } ?>

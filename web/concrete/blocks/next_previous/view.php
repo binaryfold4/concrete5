@@ -1,33 +1,30 @@
-<?php  
-defined('C5_EXECUTE') or die("Access Denied.");  
-$ih = Loader::helper('image'); 
-?> 
+<?php defined('C5_EXECUTE') or die("Access Denied.");
+
+$nh = Loader::helper('navigation');
+$previousLinkURL = is_object($previousCollection) ? $nh->getLinkToCollection($previousCollection) : '';
+$parentLinkURL = is_object($parentCollection) ? $nh->getLinkToCollection($parentCollection) : '';
+$nextLinkURL = is_object($nextCollection) ? $nh->getLinkToCollection($nextCollection) : '';
+?>
+
+<div id="ccm-next-previous-<?php echo $bID; ?>" class="ccm-next-previous-wrapper">
+
+    <?php if ($previousLinkText): ?>
+	<div class="ccm-next-previous-previouslink">
+		<?php echo $previousLinkURL ? '<a href="' . $previousLinkURL . '">' . $previousLinkText . '</a>' : '&nbsp;' ?>
+ 	</div>
+	<?php endif; ?>
+
+	<?php if ($parentLinkText): ?>
+	<div class="ccm-next-previous-parentlink">
+		<?php echo $parentLinkURL ? '<a href="' . $parentLinkURL . '">' . $parentLinkText . '</a>' : '' ?>
+ 	</div>
+	<?php endif; ?>
 	
-<div id="ccm-next-previous-<?php echo intval($bID)?>" class="ccm-next-previous-wrapper">
+	<?php if ($nextLinkText): ?>
+	<div class="ccm-next-previous-nextlink">
+		<?php echo $nextLinkURL ? '<a href="' . $nextLinkURL . '">' . $nextLinkText . '</a>' : '' ?>
+ 	</div>
+	<?php endif; ?>
 
-    <div class="ccm-next-previous-previouslink">
-    <?php  if( is_object($previousCollection) ){ ?>
-        <a href="<?php echo View::url($previousCollection->getCollectionPath())?>"><?php echo $previousLinkText ?></a>  
-    <?php  } else { ?>
-		&nbsp;
-    <?php  } ?>
-    </div>
-    
-    <div class="ccm-next-previous-parentlink">
-	<?php  if( is_object($parentCollection) && $parentLinkText){ ?> 
-        <a href="<?php echo View::url($parentCollection->getCollectionPath())?>"><?php echo $parentLinkText ?></a>
-    <?php  } else { ?>
-		&nbsp;
-    <?php  } ?>
-    </div>
-
-    <div class="ccm-next-previous-nextlink">
-	<?php  if( is_object($nextCollection) ){ ?> 
-        <a href="<?php echo View::url($nextCollection->getCollectionPath())?>"><?php echo $nextLinkText ?></a>
-    <?php  } else { ?>
-		&nbsp;
-    <?php  } ?>
-    </div>
-    
-    <div class="spacer"></div> 
+	<div class="spacer"></div>
 </div>

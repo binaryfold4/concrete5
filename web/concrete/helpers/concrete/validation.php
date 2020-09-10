@@ -1,4 +1,4 @@
-<?
+<?php
 /**
  * @package Helpers
  * @category Concrete
@@ -53,11 +53,9 @@
 
 	
 		/**
-		 * Returns true if this is a valid pass. Valid passwords cannot contain
-		 * ',",\ or whitespace. Also checks against the password length constant
+		 * Returns true if this is a valid password. 
 		 */
 		public function password($pass) {
-			$pass = trim($pass);
 			if (strlen($pass) < USER_PASSWORD_MINIMUM) {
 				return false;
 			}
@@ -65,32 +63,39 @@
 				return false;
 			}
 			
-			$resp = preg_match('/[[:space:]]|\>|\<|\"|\'|\\\/i', $pass);
-			if ($resp > 0) {
-				return false;
-			}
 			return true;
 		}
 			
 		/**
 		 * Returns true if this is a valid username. 
-		 * Valid usernames can only contain letters, numbers and optionally single spaces
+		 * Valid usernames can only contain letters, numbers, dots (only in the middle), underscores (only in the middle) and optionally single spaces
+		 * @return bool
 		*/
 		public function username($username) {
 			$username = trim($username);
 			if (strlen($username) < USER_USERNAME_MINIMUM) {
 				return false;
 			}
-			if(USER_USERNAME_ALLOW_SPACES) {
-				$resp = preg_match("/[^A-Za-z0-9 ]/", $username);
-			} else {
-				$resp = preg_match("/[^A-Za-z0-9]/", $username);
-			}
-
-			if ($resp > 0) {
+			if (strlen($username) > USER_USERNAME_MAXIMUM) {
 				return false;
 			}
-			
+			$rxBoundary = '[A-Za-z0-9]';
+			if(USER_USERNAME_ALLOW_SPACES) {
+				$rxMiddle = '[A-Za-z0-9_. ]';
+			}
+			else {
+				$rxMiddle = '[A-Za-z0-9_.]';
+			}
+			if(strlen($username) < 3) {
+				if(!preg_match('/^' . $rxBoundary . '+$/', $username)) {
+					return false;
+				}
+			}
+			else {
+				if(!preg_match('/^' . $rxBoundary  . $rxMiddle . '+'. $rxBoundary . '$/', $username)) {
+					return false;
+				}
+			}
 			return true;
 		}
 	

@@ -1,0 +1,5 @@
+/web
+/vendor
+/build-tools
+.DS_Store
+.project

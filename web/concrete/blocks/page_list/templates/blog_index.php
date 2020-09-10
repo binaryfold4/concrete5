@@ -6,16 +6,19 @@ defined('C5_EXECUTE') or die("Access Denied.");
 	$isFirst = true; //So first item in list can have a different css class (e.g. no top border)
 	$excerptBlocks = ($controller->truncateSummaries ? 1 : null); //1 is the number of blocks to include in the excerpt
 	$truncateChars = ($controller->truncateSummaries ? $controller->truncateChars : 0);
+	$dateHelper = Loader::helper('date');
+	/* @var $dateHelper DateHelper */
 	foreach ($cArray as $cobj):
 		$title = $cobj->getCollectionName();
-		$date = $cobj->getCollectionDatePublic('F j, Y');
+		$date = $dateHelper->formatDate($cobj->getCollectionDatePublic(), true);
 		$author = $cobj->getVersionObject()->getVersionAuthorUserName();
 		$link = $nh->getLinkToCollection($cobj);
 		$firstClass = $isFirst ? 'first-entry' : '';
 		
 		$entryController = Loader::controller($cobj);
-		$comments = $entryController->getCommentCountString('%s '.t('Comment'), '%s '.t('Comments'));
-		
+		if(method_exists($entryController,'getCommentCountString')) {
+			$comments = $entryController->getCommentCountString('%s '.t('Comment'), '%s '.t('Comments'));
+		}
 		$isFirst = false;
 	?>
 	<div class="entry <?php echo $firstClass; ?>">
@@ -24,7 +27,9 @@ defined('C5_EXECUTE') or die("Access Denied.");
 				<a href="<?php echo $link; ?>"><?php echo $title; ?></a>
 			</h3>
 			<h4>
-				Posted by <?php echo $author; ?> on <?php echo $date; ?>
+				<?php 
+				echo t('Posted by %s on %s',$author,$date);
+				?>
 			</h4>
 		</div>
 		<div class="excerpt">
@@ -36,7 +41,7 @@ defined('C5_EXECUTE') or die("Access Denied.");
 		</div>
 		<div class="ccm-spacer"></div>
 		<div class="meta">
-			<?php echo $comments; ?> <a href="<?php echo $link; ?>">Read full post &raquo;</a>
+			<?php echo $comments; ?> <a href="<?php echo $link; ?>"><?php echo t('Read full post'); ?> &raquo;</a>
 		</div>
 	</div>
 	<hr class="blog-entry-divider"/>
@@ -54,9 +59,9 @@ defined('C5_EXECUTE') or die("Access Denied.");
 	?>
 		<div id="rss">
 			<a href="<?php echo $rssUrl; ?>" target="_blank"><?php echo t('Subscribe to RSS Feed')?></a>
-			<a href="<?php echo $rssUrl; ?>" target="_blank"><img src="<?php echo $rssIcon; ?>" width="14" height="14" /></a>
+			<a href="<?php echo $rssUrl; ?>" target="_blank"><img src="<?php echo $rssIcon; ?>" width="14" height="14" alt="<?php echo t('RSS Icon')?>" title="<?php echo t('RSS Feed')?>" /></a>
 		</div>
-		<link href="<?php echo $rssUrl; ?>" rel="alternate" type="application/rss+xml" title="<?php echo $rssTitle; ?>" />
+		<link href="<?php echo BASE_URL.$rssUrl; ?>" rel="alternate" type="application/rss+xml" title="<?php echo $rssTitle; ?>" />
 	<?php endif; ?>
 	
 
@@ -67,8 +72,8 @@ defined('C5_EXECUTE') or die("Access Denied.");
 			if ($summary->pages > 1):
 				$paginator = $pl->getPagination();
 			?>
-				<span class="pagination-left"><?php echo $paginator->getPrevious('&laquo; Newer Posts'); ?></span>
-				<span class="pagination-right"><?php echo $paginator->getNext('Older Posts &raquo;'); ?></span>
+				<span class="pagination-left">&laquo; <?php echo $paginator->getPrevious('Newer Posts'); ?></span>
+				<span class="pagination-right"><?php echo $paginator->getNext('Older Posts'); ?> &raquo;</span>
 				<?php echo $paginator->getPages(); ?>
 			<?php endif; ?>
 		</div>
